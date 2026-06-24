@@ -5,8 +5,22 @@ create table if not exists users (
   username text not null unique,
   display_name text not null,
   role text not null check (role in ('member', 'admin')),
+  password_hash text,
+  last_seen_at text,
   created_at text not null,
   updated_at text not null
+);
+
+create table if not exists invite_tokens (
+  id integer primary key autoincrement,
+  token_hash text not null unique,
+  created_by integer not null references users(id),
+  role text not null check (role in ('member', 'admin')),
+  max_uses integer,
+  use_count integer not null default 0,
+  expires_at text,
+  created_at text not null,
+  is_revoked integer not null default 0
 );
 
 create table if not exists folders (

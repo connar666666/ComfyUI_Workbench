@@ -39,5 +39,5 @@ class JobService:
             replace_audio_asset_id=replace_audio_asset_id,
         )
 
-    def list_jobs(self) -> list[dict]:
-        return self.repo.list_jobs()
+    def list_jobs(self, user_id: int | None = None, role: str | None = None) -> list[dict]:
+        return self.repo.list_jobs(user_id=user_id, role=role)

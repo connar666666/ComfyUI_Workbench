@@ -23,9 +23,41 @@ def connect_db(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Apply schema additions that may be missing in existing databases."""
+    existing = {row[0] for row in conn.execute("select name from sqlite_master where type='table'").fetchall()}
+
+    # First-time: run full schema
+    if "users" not in existing:
+        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        return
+
+    # Migrations for existing databases
+    user_cols = {row[1] for row in conn.execute("pragma table_info('users')").fetchall()}
+    if "password_hash" not in user_cols:
+        conn.execute("alter table users add column password_hash text")
+    if "last_seen_at" not in user_cols:
+        conn.execute("alter table users add column last_seen_at text")
+
+    if "invite_tokens" not in existing:
+        conn.execute("""
+            create table if not exists invite_tokens (
+              id integer primary key autoincrement,
+              token_hash text not null unique,
+              created_by integer not null references users(id),
+              role text not null check (role in ('member', 'admin')),
+              max_uses integer,
+              use_count integer not null default 0,
+              expires_at text,
+              created_at text not null,
+              is_revoked integer not null default 0
+            )
+        """)
+
+
 def initialize_db(path: Path, default_user: str = "local-user", default_role: str = "admin") -> None:
     with closing(connect_db(path)) as conn:
-        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        _run_migrations(conn)
         now = utc_now()
         conn.execute(
             """

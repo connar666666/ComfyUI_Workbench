@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+import secrets
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -12,6 +13,15 @@ class WorkbenchSettings:
     comfyui_url: str
     default_user: str
     default_role: str
+    jwt_secret: str
+    jwt_expiry_hours: int
+    invite_token_bytes: int
+    invite_expiry_days: int
+
+
+def _dev_jwt_secret() -> str:
+    """Generate a random secret for dev if not configured."""
+    return os.environ.get("JWT_SECRET", "dev-" + secrets.token_hex(32))
 
 
 def load_settings() -> WorkbenchSettings:
@@ -23,4 +33,8 @@ def load_settings() -> WorkbenchSettings:
         comfyui_url=os.environ.get("COMFYUI_URL", "http://192.168.7.75:8188").rstrip("/"),
         default_user=os.environ.get("WORKBENCH_DEFAULT_USER", "local-user"),
         default_role=os.environ.get("WORKBENCH_DEFAULT_ROLE", "admin"),
+        jwt_secret=_dev_jwt_secret(),
+        jwt_expiry_hours=int(os.environ.get("JWT_EXPIRY_HOURS", "24")),
+        invite_token_bytes=int(os.environ.get("INVITE_TOKEN_BYTES", "32")),
+        invite_expiry_days=int(os.environ.get("INVITE_EXPIRY_DAYS", "7")),
     )

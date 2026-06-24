@@ -35,5 +35,10 @@ class AssetService:
             folder_id=folder_id,
         )
 
-    def list_assets(self, kind: str | None = None) -> list[dict]:
-        return self.repo.list_assets(kind=kind)
+    def list_assets(
+        self,
+        kind: str | None = None,
+        user_id: int | None = None,
+        role: str | None = None,
+    ) -> list[dict]:
+        return self.repo.list_assets(kind=kind, user_id=user_id, role=role)

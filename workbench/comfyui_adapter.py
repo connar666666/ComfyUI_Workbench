@@ -19,8 +19,13 @@ class CompletedComfyJob:
 
 
 class WorkbenchComfyUIAdapter:
-    def __init__(self, backend: ComfyUIBackend):
-        self.backend = backend
+    def __init__(self, *, backend: ComfyUIBackend | None = None, comfyui_url: str | None = None):
+        if backend is not None:
+            self.backend = backend
+        elif comfyui_url is not None:
+            self.backend = ComfyUIBackend(comfyui_url=comfyui_url)
+        else:
+            self.backend = ComfyUIBackend()
 
     async def submit(
         self,

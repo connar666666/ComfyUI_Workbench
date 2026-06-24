@@ -1,0 +1,12 @@
+[project]
+name = "comfyui-workbench"
+version = "0.1.0"
+description = "ComfyUI Workbench — standalone web UI for ComfyUI video generation"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116.0",
+    "uvicorn[standard]>=0.35.0",
+    "python-multipart>=0.0.20",
+    "httpx>=0.28.0",
+    "requests>=2.28",
+]

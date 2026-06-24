@@ -1,0 +1,342 @@
+/* ===== CSS Variables ===== */
+:root {
+  --sidebar-width: 240px;
+  --sidebar-bg: #1e1e2e;
+  --sidebar-hover: #313149;
+  --sidebar-active: #454575;
+  --sidebar-text: #cdd6f4;
+  --sidebar-muted: #6c7086;
+
+  --main-bg: #f5f5f9;
+  --main-text: #1e1e2e;
+  --main-muted: #6c7086;
+
+  --border-color: #e0e0e8;
+  --card-bg: #ffffff;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-light: #ede9fe;
+
+  --badge-queued: #f59e0b;
+  --badge-running: #3b82f6;
+  --badge-succeeded: #10b981;
+  --badge-failed: #ef4444;
+  --badge-canceled: #6b7280;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+}
+
+/* ===== Reset ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  font-size: 14px;
+  color: var(--main-text);
+  background: var(--main-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ===== App Shell ===== */
+.app-shell {
+  display: flex;
+  height: 100%;
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-md);
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-lg);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.sidebar a {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 10px var(--spacing-md);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sidebar-text);
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+}
+
+.sidebar a:hover {
+  background: var(--sidebar-hover);
+  color: #fff;
+}
+
+.sidebar a.active {
+  background: var(--sidebar-active);
+  color: #fff;
+  font-weight: 600;
+}
+
+.sidebar a svg {
+  flex-shrink: 0;
+}
+
+/* ===== Main Area ===== */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-xl);
+}
+
+/* ===== Page ===== */
+.page {
+  max-width: 1280px;
+}
+
+.page h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: var(--spacing-lg);
+  color: var(--main-text);
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  color: var(--main-muted);
+  font-size: 15px;
+  padding: var(--spacing-xl) 0;
+}
+
+/* ===== Tables ===== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+
+thead {
+  background: #f8f8fc;
+  border-bottom: 2px solid var(--border-color);
+}
+
+th {
+  text-align: left;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--main-muted);
+}
+
+td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:hover td {
+  background: #fafafe;
+}
+
+/* ===== Badges ===== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.6;
+}
+
+.badge-queued {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-running {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-succeeded {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-canceled {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* ===== Forms ===== */
+.form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--main-text);
+  margin-bottom: var(--spacing-xs);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="file"],
+select,
+textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--main-text);
+  background: var(--card-bg);
+  transition: border-color 0.15s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: var(--border-color);
+  color: var(--main-text);
+}
+
+.btn-secondary:hover {
+  background: #d4d4e0;
+}
+
+/* ===== Folder Tree ===== */
+.folder-tree {
+  padding: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--main-muted);
+}
+
+/* ===== Tag Filter ===== */
+.tag-filter {
+  padding: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--main-muted);
+}
+
+/* ===== Detail Drawer ===== */
+.detail-drawer {
+  padding: var(--spacing-md);
+  font-size: 13px;
+  color: var(--main-muted);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: unset;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: var(--spacing-sm);
+    gap: var(--spacing-xs);
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .sidebar a {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .main {
+    padding: var(--spacing-md);
+  }
+}

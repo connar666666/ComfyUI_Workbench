@@ -1,0 +1,26 @@
+# System
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# IDE
+.idea/
+.vscode/
+.codegraph/
+.claude/
+
+# Env
+.env
+
+# Database
+*.sqlite
+*.db
+
+# Web
+web/node_modules/
+web/dist/
+
+# Storage (generated at runtime)
+~/.openclaw/

@@ -22,12 +22,29 @@ export type Job = {
   duration_sec: number;
   resolution: string;
   created_at: string;
+  canvas_id?: string | null;
+  canvas_node_id?: string | null;
+  canvas_version_id?: number | null;
+  output_video_id?: number | null;
   started_at?: string | null;
   completed_at?: string | null;
   error_message?: string | null;
   error_code?: string | null;
   created_by_username?: string;
   created_by?: number;
+};
+
+export type NodeVersion = {
+  id: number;
+  canvas_id: string;
+  node_id: string;
+  generation_job_id: number;
+  output_video_id?: number | null;
+  version_number: number;
+  prompt: string;
+  status: Job["status"];
+  created_by: number;
+  created_at: string;
 };
 
 export type Video = {

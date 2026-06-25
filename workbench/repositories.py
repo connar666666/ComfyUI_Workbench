@@ -196,6 +196,9 @@ class WorkbenchRepository:
         reference_image_asset_id: int | None,
         reference_audio_asset_id: int | None,
         replace_audio_asset_id: int | None,
+        canvas_id: str | None = None,
+        canvas_node_id: str | None = None,
+        canvas_version_id: int | None = None,
     ) -> dict[str, Any]:
         now = utc_now()
         with connect_db(self.db_path) as conn:
@@ -204,9 +207,9 @@ class WorkbenchRepository:
                 insert into generation_jobs(
                   created_by, status, prompt, duration_sec, resolution, audio_start_sec,
                   reference_image_asset_id, reference_audio_asset_id, replace_audio_asset_id,
-                  created_at, updated_at
+                  canvas_id, canvas_node_id, canvas_version_id, created_at, updated_at
                 )
-                values (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     created_by,
@@ -217,6 +220,9 @@ class WorkbenchRepository:
                     reference_image_asset_id,
                     reference_audio_asset_id,
                     replace_audio_asset_id,
+                    canvas_id,
+                    canvas_node_id,
+                    canvas_version_id,
                     now,
                     now,
                 ),
@@ -259,6 +265,74 @@ class WorkbenchRepository:
         if conditions:
             sql += " where " + " and ".join(conditions)
         sql += " order by j.created_at desc, j.id desc"
+        with connect_db(self.db_path) as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def next_node_version_number(self, canvas_id: str, node_id: str) -> int:
+        with connect_db(self.db_path) as conn:
+            row = conn.execute(
+                "select coalesce(max(version_number), 0) + 1 as next_version "
+                "from node_versions where canvas_id = ? and node_id = ?",
+                (canvas_id, node_id),
+            ).fetchone()
+        return int(row["next_version"])
+
+    def create_node_version(
+        self,
+        *,
+        canvas_id: str,
+        node_id: str,
+        generation_job_id: int,
+        output_video_id: int | None,
+        prompt: str,
+        input_asset_ids: list[int],
+        params: dict[str, Any],
+        snapshot: dict[str, Any],
+        status: str,
+        created_by: int,
+        parent_version_id: int | None = None,
+        negative_prompt: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now()
+        version_number = self.next_node_version_number(canvas_id, node_id)
+        with connect_db(self.db_path) as conn:
+            cur = conn.execute(
+                """
+                insert into node_versions(
+                  canvas_id, node_id, generation_job_id, output_video_id, version_number,
+                  parent_version_id, prompt, negative_prompt, input_asset_ids_json,
+                  params_json, snapshot_json, status, created_by, created_at
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    canvas_id,
+                    node_id,
+                    generation_job_id,
+                    output_video_id,
+                    version_number,
+                    parent_version_id,
+                    prompt,
+                    negative_prompt,
+                    json.dumps(input_asset_ids, ensure_ascii=False),
+                    json.dumps(params, ensure_ascii=False),
+                    json.dumps(snapshot, ensure_ascii=False),
+                    status,
+                    created_by,
+                    now,
+                ),
+            )
+            conn.commit()
+            row = conn.execute("select * from node_versions where id = ?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+    def list_node_versions(self, canvas_id: str, node_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "select * from node_versions where canvas_id = ?"
+        params: list[Any] = [canvas_id]
+        if node_id is not None:
+            sql += " and node_id = ?"
+            params.append(node_id)
+        sql += " order by created_at desc, id desc"
         with connect_db(self.db_path) as conn:
             return [dict(row) for row in conn.execute(sql, params).fetchall()]
 

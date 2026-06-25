@@ -23,6 +23,11 @@ def connect_db(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = conn.execute(f"pragma table_info({table})").fetchall()
+    return any(row["name"] == column for row in rows)
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply schema additions that may be missing in existing databases."""
     existing = {row[0] for row in conn.execute("select name from sqlite_master where type='table'").fetchall()}
@@ -51,6 +56,36 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
               expires_at text,
               created_at text not null,
               is_revoked integer not null default 0
+            )
+        """)
+
+    for column, sql in [
+        ("canvas_id", "alter table generation_jobs add column canvas_id text"),
+        ("canvas_node_id", "alter table generation_jobs add column canvas_node_id text"),
+        ("canvas_version_id", "alter table generation_jobs add column canvas_version_id integer"),
+    ]:
+        if "generation_jobs" in existing and not _column_exists(conn, "generation_jobs", column):
+            conn.execute(sql)
+
+    if "node_versions" not in existing:
+        conn.execute("""
+            create table if not exists node_versions (
+              id integer primary key autoincrement,
+              canvas_id text not null,
+              node_id text not null,
+              generation_job_id integer not null references generation_jobs(id),
+              output_video_id integer references videos(id),
+              version_number integer not null,
+              parent_version_id integer references node_versions(id),
+              prompt text not null,
+              negative_prompt text,
+              input_asset_ids_json text not null default '[]',
+              params_json text not null default '{}',
+              snapshot_json text not null default '{}',
+              status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'canceled')),
+              created_by integer references users(id),
+              created_at text not null,
+              unique(canvas_id, node_id, version_number)
             )
         """)
 

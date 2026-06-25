@@ -1,10 +1,11 @@
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { Images, ListVideo, LogOut, PlusCircle, Server, UserPlus, Video } from "lucide-react";
+import { Images, ListVideo, LogOut, PlusCircle, Server, UserPlus, Video, Workflow } from "lucide-react";
 import { AssetsPage } from "./pages/AssetsPage";
 import { NewJobPage } from "./pages/NewJobPage";
 import { JobsPage } from "./pages/JobsPage";
 import { ComfyQueuePage } from "./pages/ComfyQueuePage";
 import { VideosPage } from "./pages/VideosPage";
+import { CanvasPage } from "./features/canvas/components/CanvasPage";
 import { LoginPage } from "./pages/LoginPage";
 import { JoinPage } from "./pages/JoinPage";
 import { InvitePage } from "./pages/InvitePage";
@@ -32,6 +33,7 @@ function AppShell() {
         {isAuthenticated ? (
           <>
             <NavLink to="/assets"><Images size={18} />素材库</NavLink>
+            <NavLink to="/canvas"><Workflow size={18} />创作画布</NavLink>
             <NavLink to="/jobs/new"><PlusCircle size={18} />创建任务</NavLink>
             <NavLink to="/jobs"><ListVideo size={18} />任务队列</NavLink>
             <NavLink to="/comfyui"><Server size={18} />ComfyUI 队列</NavLink>
@@ -68,6 +70,7 @@ function AppShell() {
           {/* Protected */}
           <Route path="/" element={isAuthenticated ? <AssetsPage /> : <Navigate to="/login" />} />
           <Route path="/assets" element={isAuthenticated ? <AssetsPage /> : <Navigate to="/login" />} />
+          <Route path="/canvas" element={isAuthenticated ? <CanvasPage /> : <Navigate to="/login" />} />
           <Route path="/jobs/new" element={isAuthenticated ? <NewJobPage /> : <Navigate to="/login" />} />
           <Route path="/jobs" element={isAuthenticated ? <JobsPage /> : <Navigate to="/login" />} />
           <Route path="/comfyui" element={isAuthenticated ? <ComfyQueuePage /> : <Navigate to="/login" />} />

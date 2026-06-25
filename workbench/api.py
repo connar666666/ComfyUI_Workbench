@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import httpx
 from fastapi import Depends, FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from .auth import CurrentUser, current_user_from_headers, get_current_user
+from .auth import CurrentUser, get_current_user
 from .config import WorkbenchSettings, load_settings
 from .db import initialize_db
-from .errors import WorkbenchError
+from .errors import PermissionDeniedError, ValidationError, WorkbenchError
 from .repositories import WorkbenchRepository
 from .services.assets import AssetService
 from .services.jobs import JobService
@@ -26,6 +27,20 @@ class CreateJobRequest(BaseModel):
     canvas_id: str | None = None
     canvas_node_id: str | None = None
     canvas_version_id: int | None = None
+
+
+class LiveblocksAuthRequest(BaseModel):
+    room: str
+
+
+class ResolveUsersRequest(BaseModel):
+    userIds: list[str]
+
+
+def _user_color(user_id: str) -> str:
+    if user_id.isdigit():
+        return f"hsl({(int(user_id) * 47) % 360} 70% 45%)"
+    return "hsl(210 70% 45%)"
 
 
 def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
@@ -65,6 +80,63 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
     @app.get("/api/health")
     def health():
         return {"status": "ok"}
+
+    # ── Liveblocks ───────────────────────────────────────────────────
+
+    @app.post("/api/liveblocks-auth")
+    def liveblocks_auth(
+        payload: LiveblocksAuthRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        if not payload.room.startswith("canvas:"):
+            raise PermissionDeniedError("invalid Liveblocks room")
+        if not settings.liveblocks_secret_key:
+            raise ValidationError("LIVEBLOCKS_SECRET_KEY is not configured")
+
+        user_record = repo.get_user_by_id(user.id)
+        body = {
+            "userId": str(user.id),
+            "userInfo": {
+                "name": user_record.get("display_name") or user.username,
+                "avatar": None,
+                "color": _user_color(str(user.id)),
+            },
+            "permissions": {
+                payload.room: ["room:write"],
+            },
+        }
+        try:
+            response = httpx.post(
+                "https://api.liveblocks.io/v2/authorize-user",
+                headers={
+                    "Authorization": f"Bearer {settings.liveblocks_secret_key}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+                timeout=10,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise ValidationError(f"Liveblocks authorization failed: {exc}") from exc
+        return response.json()
+
+    @app.post("/api/liveblocks/resolve-users")
+    def resolve_liveblocks_users(
+        payload: ResolveUsersRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        users = repo.list_users()
+        by_id = {str(item["id"]): item for item in users}
+        return [
+            {
+                "id": user_id,
+                "name": by_id.get(user_id, {}).get("display_name")
+                or by_id.get(user_id, {}).get("username")
+                or f"user#{user_id}",
+                "color": _user_color(user_id),
+            }
+            for user_id in payload.userIds
+        ]
 
     # ── Assets ───────────────────────────────────────────────────────
 
@@ -121,6 +193,23 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
         job = repo.get_job(job_id)
         event_bus.publish(EventType.JOB_STATUS_CHANGED, {"job": job}, visible_to="all")
         return job
+
+    # ── Canvas Versions ──────────────────────────────────────────────
+
+    @app.get("/api/canvas/{canvas_id}/versions")
+    def list_canvas_versions(
+        canvas_id: str,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return repo.list_node_versions(canvas_id)
+
+    @app.get("/api/canvas/{canvas_id}/nodes/{node_id}/versions")
+    def list_canvas_node_versions(
+        canvas_id: str,
+        node_id: str,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return repo.list_node_versions(canvas_id, node_id)
 
     # ── Videos ───────────────────────────────────────────────────────
 

@@ -11,4 +11,5 @@ dependencies = [
     "requests>=2.28",
     "pyjwt>=2.8",
     "sse-starlette>=2.2",
+    "python-dotenv>=1.2.2",
 ]

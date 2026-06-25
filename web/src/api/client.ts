@@ -1,4 +1,4 @@
-import type { Asset, Job, QueueStatus, User, Video } from "../types";
+import type { Asset, Job, NodeVersion, QueueStatus, User, Video } from "../types";
 
 // ── Auth token helpers ──────────────────────────────────────────────────
 
@@ -162,6 +162,9 @@ export async function createJob(payload: {
   audio_start_sec: number;
   reference_image_asset_id?: number | null;
   reference_audio_asset_id?: number | null;
+  canvas_id?: string | null;
+  canvas_node_id?: string | null;
+  canvas_version_id?: number | null;
 }): Promise<Job> {
   const res = await fetch("/api/jobs", {
     method: "POST",
@@ -212,5 +215,35 @@ export async function getQueueStatus(): Promise<QueueStatus> {
 export async function listUsers(): Promise<User[]> {
   const res = await fetch("/api/users", { headers: authHeaders() });
   if (!res.ok) throw new Error("Failed to list users");
+  return res.json();
+}
+
+// ── Canvas ───────────────────────────────────────────────────────────────
+
+export async function listNodeVersions(
+  canvasId: string,
+  nodeId?: string
+): Promise<NodeVersion[]> {
+  const suffix = nodeId ? `/nodes/${encodeURIComponent(nodeId)}/versions` : "/versions";
+  const res = await fetch(`/api/canvas/${encodeURIComponent(canvasId)}${suffix}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to load node versions");
+  return res.json();
+}
+
+export type LiveblocksUserInfo = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export async function resolveLiveblocksUsers(userIds: string[]): Promise<LiveblocksUserInfo[]> {
+  const res = await fetch("/api/liveblocks/resolve-users", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ userIds }),
+  });
+  if (!res.ok) throw new Error("Failed to resolve users");
   return res.json();
 }

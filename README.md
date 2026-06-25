@@ -78,7 +78,7 @@ uv run python -m workbench.main
 
 ```bash
 cd web && npm run dev
-# 前端: http://0.0.0.0:5174
+# 前端: http://127.0.0.1:8088
 # Vite proxy 自动转发 /api, /files → 后端
 ```
 
@@ -95,6 +95,34 @@ cd web && npm run dev
 | `WORKBENCH_PORT` | `8090` | 后端监听端口 |
 | `FRONTEND_HOST` | `0.0.0.0` | 前端监听地址 |
 | `FRONTEND_PORT` | `5174` | 前端监听端口 |
+| `LIVEBLOCKS_SECRET_KEY` | 未设置 | Liveblocks secret key，用于协作画布授权 |
+
+## 创作画布
+
+协作画布入口：
+
+```txt
+http://127.0.0.1:8088/canvas
+```
+
+启动前需要配置 Liveblocks secret key：
+
+```bash
+LIVEBLOCKS_SECRET_KEY="<your-liveblocks-secret-key>" ./start.sh
+```
+
+画布使用 React Flow + Liveblocks 同步节点、连线和协作者光标。素材、任务、视频和版本历史仍由 Workbench 后端保存。
+
+第一版支持：
+
+- Prompt Node
+- Asset Node
+- Video Generation Node
+- 从现有素材创建素材节点
+- 上传素材并创建素材节点
+- 调用现有 `/api/jobs` 创建生成任务
+- 通过 SSE 回写任务状态
+- 成功任务写入 `node_versions`
 
 ## API 端点
 

@@ -389,6 +389,15 @@ class WorkbenchRepository:
             )
             conn.commit()
 
+    def set_job_canvas_version(self, job_id: int, canvas_version_id: int) -> None:
+        now = utc_now()
+        with connect_db(self.db_path) as conn:
+            conn.execute(
+                "update generation_jobs set canvas_version_id = ?, updated_at = ? where id = ?",
+                (canvas_version_id, now, job_id),
+            )
+            conn.commit()
+
     def cancel_job(self, job_id: int, user_id: int | None = None, role: str | None = None) -> None:
         """Cancel a queued job. Admin can cancel any; member only their own."""
         now = utc_now()

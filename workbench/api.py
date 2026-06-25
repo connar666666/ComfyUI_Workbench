@@ -23,6 +23,9 @@ class CreateJobRequest(BaseModel):
     reference_image_asset_id: int | None = None
     reference_audio_asset_id: int | None = None
     replace_audio_asset_id: int | None = None
+    canvas_id: str | None = None
+    canvas_node_id: str | None = None
+    canvas_version_id: int | None = None
 
 
 def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:

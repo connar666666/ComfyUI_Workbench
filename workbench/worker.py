@@ -95,6 +95,34 @@ class WorkbenchWorker:
 
             self.repo.mark_job_succeeded(job["id"], output_video_id=video_id)
             final_job = self.repo.get_job(job["id"])
+            if final_job.get("canvas_id") and final_job.get("canvas_node_id"):
+                input_asset_ids = [
+                    asset_id
+                    for asset_id in [
+                        final_job.get("reference_image_asset_id"),
+                        final_job.get("reference_audio_asset_id"),
+                        final_job.get("replace_audio_asset_id"),
+                    ]
+                    if asset_id is not None
+                ]
+                version = self.repo.create_node_version(
+                    canvas_id=final_job["canvas_id"],
+                    node_id=final_job["canvas_node_id"],
+                    generation_job_id=final_job["id"],
+                    output_video_id=final_job.get("output_video_id"),
+                    prompt=final_job["prompt"],
+                    input_asset_ids=input_asset_ids,
+                    params={
+                        "duration_sec": final_job["duration_sec"],
+                        "resolution": final_job["resolution"],
+                        "audio_start_sec": final_job["audio_start_sec"],
+                    },
+                    snapshot={"job": final_job},
+                    status=final_job["status"],
+                    created_by=final_job["created_by"],
+                )
+                self.repo.set_job_canvas_version(final_job["id"], version["id"])
+                final_job = self.repo.get_job(job["id"])
             self.event_bus.publish(EventType.JOB_STATUS_CHANGED, {"job": final_job}, visible_to="all")
             return final_job
 

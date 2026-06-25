@@ -20,6 +20,9 @@ class JobService:
         reference_image_asset_id: int | None,
         reference_audio_asset_id: int | None,
         replace_audio_asset_id: int | None,
+        canvas_id: str | None = None,
+        canvas_node_id: str | None = None,
+        canvas_version_id: int | None = None,
     ) -> dict:
         prompt = prompt.strip()
         if not prompt:
@@ -37,6 +40,9 @@ class JobService:
             reference_image_asset_id=reference_image_asset_id,
             reference_audio_asset_id=reference_audio_asset_id,
             replace_audio_asset_id=replace_audio_asset_id,
+            canvas_id=canvas_id,
+            canvas_node_id=canvas_node_id,
+            canvas_version_id=canvas_version_id,
         )
 
     def list_jobs(self, user_id: int | None = None, role: str | None = None) -> list[dict]:

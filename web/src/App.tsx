@@ -1,5 +1,5 @@
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { Images, ListVideo, LogOut, PlusCircle, Server, UserPlus, Video, Workflow } from "lucide-react";
+import { Cloud, Images, ListVideo, LogOut, PlusCircle, Server, UserPlus, Video, Workflow } from "lucide-react";
 import { AssetsPage } from "./pages/AssetsPage";
 import { NewJobPage } from "./pages/NewJobPage";
 import { JobsPage } from "./pages/JobsPage";
@@ -9,6 +9,7 @@ import { CanvasPage } from "./features/canvas/components/CanvasPage";
 import { LoginPage } from "./pages/LoginPage";
 import { JoinPage } from "./pages/JoinPage";
 import { InvitePage } from "./pages/InvitePage";
+import { RemoteWorkflowsPage } from "./pages/RemoteWorkflowsPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 function AppShell() {
@@ -37,6 +38,7 @@ function AppShell() {
             <NavLink to="/jobs/new"><PlusCircle size={18} />创建任务</NavLink>
             <NavLink to="/jobs"><ListVideo size={18} />任务队列</NavLink>
             <NavLink to="/comfyui"><Server size={18} />ComfyUI 队列</NavLink>
+            <NavLink to="/remote-workflows"><Cloud size={18} />远程工作流</NavLink>
             <NavLink to="/videos"><Video size={18} />视频库</NavLink>
             {user?.role === "admin" && (
               <NavLink to="/invite"><UserPlus size={18} />邀请成员</NavLink>
@@ -74,6 +76,7 @@ function AppShell() {
           <Route path="/jobs/new" element={isAuthenticated ? <NewJobPage /> : <Navigate to="/login" />} />
           <Route path="/jobs" element={isAuthenticated ? <JobsPage /> : <Navigate to="/login" />} />
           <Route path="/comfyui" element={isAuthenticated ? <ComfyQueuePage /> : <Navigate to="/login" />} />
+          <Route path="/remote-workflows" element={isAuthenticated ? <RemoteWorkflowsPage /> : <Navigate to="/login" />} />
           <Route path="/videos" element={isAuthenticated ? <VideosPage /> : <Navigate to="/login" />} />
           <Route path="/invite" element={isAuthenticated ? <InvitePage /> : <Navigate to="/login" />} />
         </Routes>

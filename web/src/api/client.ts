@@ -1,4 +1,16 @@
-import type { Asset, Job, NodeVersion, QueueStatus, User, Video } from "../types";
+import type {
+  Asset,
+  Job,
+  NodeVersion,
+  QueueStatus,
+  RemoteWorkflowDetail,
+  RemoteWorkflowResult,
+  RemoteWorkflowRun,
+  RemoteWorkflowSummary,
+  RemoteWorkflowUpload,
+  User,
+  Video,
+} from "../types";
 
 // ── Auth token helpers ──────────────────────────────────────────────────
 
@@ -266,6 +278,71 @@ export async function getQueueStatus(): Promise<QueueStatus> {
   const res = await fetch("/api/comfyui/queue", { headers: authHeaders() });
   if (!res.ok) {
     await throwApiError(res, "Failed to fetch queue status");
+  }
+  return res.json();
+}
+
+// ── Remote Workflows ──────────────────────────────────────────────────────
+
+export async function listRemoteWorkflows(): Promise<RemoteWorkflowSummary[]> {
+  const res = await fetch("/api/remote-workflows", { headers: authHeaders() });
+  if (!res.ok) {
+    await throwApiError(res, "Failed to load remote workflows");
+  }
+  const payload = await res.json();
+  return payload.workflows ?? [];
+}
+
+export async function getRemoteWorkflow(workflowId: string): Promise<RemoteWorkflowDetail> {
+  const res = await fetch(`/api/remote-workflows/${encodeURIComponent(workflowId)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    await throwApiError(res, "Failed to load remote workflow");
+  }
+  return res.json();
+}
+
+export async function runRemoteWorkflow(
+  workflowId: string,
+  inputValues: Record<string, unknown>
+): Promise<RemoteWorkflowRun> {
+  const res = await fetch(`/api/remote-workflows/${encodeURIComponent(workflowId)}/run`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ input_values: inputValues }),
+  });
+  if (!res.ok) {
+    await throwApiError(res, "Failed to run remote workflow");
+  }
+  return res.json();
+}
+
+export async function getRemoteWorkflowResult(promptId: string): Promise<RemoteWorkflowResult> {
+  const res = await fetch(`/api/remote-workflows/runs/${encodeURIComponent(promptId)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    await throwApiError(res, "Failed to load remote workflow result");
+  }
+  return res.json();
+}
+
+export async function uploadRemoteWorkflowFile(file: File, overwrite: boolean = true): Promise<RemoteWorkflowUpload> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("overwrite", String(overwrite));
+
+  const headers: Record<string, string> = {};
+  if (_token) headers["Authorization"] = `Bearer ${_token}`;
+
+  const res = await fetch("/api/remote-workflows/uploads", {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  if (!res.ok) {
+    await throwApiError(res, "Failed to upload remote workflow file");
   }
   return res.json();
 }

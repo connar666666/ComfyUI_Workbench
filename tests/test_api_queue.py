@@ -19,6 +19,8 @@ class QueueApiTests(unittest.TestCase):
             root_dir=root_dir,
             db_path=root_dir / "workbench.sqlite",
             comfyui_url="http://127.0.0.1:8188",
+            zealman_base_url=None,
+            zealman_token=None,
             default_user="tester",
             default_role="admin",
             jwt_secret="test-secret",

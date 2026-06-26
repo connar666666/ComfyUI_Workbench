@@ -54,4 +54,55 @@ describe("auth API errors", () => {
 
     await expect(client.register("alice", "secret")).rejects.toThrow("Username is already taken");
   });
+
+  it("lists remote workflows through the authenticated API client", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        workflows: [{ id: "wf-1", name: "Portrait Workflow", run_count: 2 }],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = await import("./client");
+    client.setAuthToken("demo-token");
+
+    await expect(client.listRemoteWorkflows()).resolves.toEqual([
+      { id: "wf-1", name: "Portrait Workflow", run_count: 2 },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/remote-workflows",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer demo-token",
+        }),
+      })
+    );
+  });
+
+  it("uploads a file for a remote workflow field", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        name: "uploaded.png",
+        type: "input",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = await import("./client");
+    client.setAuthToken("demo-token");
+
+    const file = new File(["hello"], "uploaded.png", { type: "image/png" });
+    await expect(client.uploadRemoteWorkflowFile(file)).resolves.toEqual({
+      name: "uploaded.png",
+      type: "input",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/remote-workflows/uploads",
+      expect.objectContaining({
+        method: "POST",
+      })
+    );
+  });
 });

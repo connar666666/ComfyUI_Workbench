@@ -77,6 +77,59 @@ export type QueueStatus = {
   }>;
 };
 
+export type RemoteWorkflowSummary = {
+  id: string;
+  name: string;
+  mtime?: string;
+  run_count?: number;
+  last_run_at?: string;
+  last_prompt_id?: string;
+};
+
+export type RemoteWorkflowTemplate = Record<
+  string,
+  {
+    class_type?: string;
+    inputs?: Record<string, unknown>;
+  }
+>;
+
+export type RemoteWorkflowApiConfig = {
+  enabledParams?: Record<string, boolean>;
+  formValues?: Record<string, unknown>;
+  customLabels?: Record<string, string>;
+};
+
+export type RemoteWorkflowDetail = {
+  workflow_id: string;
+  workflow_template: RemoteWorkflowTemplate;
+  api_config: RemoteWorkflowApiConfig;
+};
+
+export type RemoteWorkflowRun = {
+  prompt_id: string;
+};
+
+export type RemoteWorkflowResultItem = {
+  type?: string;
+  url?: string;
+  download_url?: string;
+  filename?: string;
+  text?: string;
+};
+
+export type RemoteWorkflowResult = {
+  prompt_id: string;
+  pending: boolean;
+  results: RemoteWorkflowResultItem[];
+};
+
+export type RemoteWorkflowUpload = {
+  name: string;
+  subfolder?: string;
+  type?: string;
+};
+
 export type SSEEvent = {
   type: string;
   data: Record<string, unknown>;

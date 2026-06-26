@@ -230,6 +230,7 @@ tr:hover td {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="number"],
 input[type="file"],
 select,
@@ -243,6 +244,20 @@ textarea {
   color: var(--main-text);
   background: var(--card-bg);
   transition: border-color 0.15s;
+}
+
+.auth-input {
+  min-height: 40px;
+  line-height: 1.4;
+  appearance: none;
+}
+
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--main-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--card-bg) inset;
+  transition: background-color 9999s ease-out 0s;
 }
 
 input:focus,

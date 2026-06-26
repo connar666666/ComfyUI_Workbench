@@ -1,16 +1,17 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Background,
   Controls,
   MiniMap,
   ReactFlow,
+  addEdge,
+  useEdgesState,
+  useNodesState,
   useReactFlow,
+  type Connection,
   type OnNodesChange,
 } from "@xyflow/react";
-import { Cursors, useLiveblocksFlow } from "@liveblocks/react-flow";
 import "@xyflow/react/dist/style.css";
-import "@liveblocks/react-flow/styles.css";
-import "@liveblocks/react-ui/styles.css";
 import type { Asset } from "../../../types";
 import type { WorkbenchEdge, WorkbenchNode } from "../canvasTypes";
 import { useCanvasAssets } from "../hooks/useCanvasAssets";
@@ -21,7 +22,7 @@ import { CanvasRightPanel } from "./CanvasRightPanel";
 import { CanvasSidebar } from "./CanvasSidebar";
 import { CanvasToolbar } from "./CanvasToolbar";
 
-type CollaborativeCanvasProps = {
+type LocalCanvasProps = {
   canvasId: string;
 };
 
@@ -29,36 +30,22 @@ function newNodeId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
-export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
+export function LocalCanvas({ canvasId }: LocalCanvasProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const reactFlow = useReactFlow<WorkbenchNode, WorkbenchEdge>();
   const { assets, kindFilter, setKindFilter, isLoading, isUploading, error, upload } = useCanvasAssets();
-  const {
-    nodes,
-    edges,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-    onDelete,
-  } = useLiveblocksFlow<WorkbenchNode, WorkbenchEdge>({
-    suspense: true,
-    storageKey: "workbenchFlow",
-    nodes: {
-      initial: [],
-      sync: {
-        "*": {
-          thumbnailUrl: "atomic",
-          errorMessage: "atomic",
-        },
-      },
-    },
-    edges: {
-      initial: [],
-    },
-  });
+  const [nodes, setNodes, onNodesChange] = useNodesState<WorkbenchNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<WorkbenchEdge>([]);
 
-  const generate = useCanvasGeneration(canvasId, nodes, edges, onNodesChange);
-  useCanvasJobEvents(canvasId, nodes, onNodesChange);
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      setEdges((current) => addEdge(connection, current));
+    },
+    [setEdges]
+  );
+
+  const generate = useCanvasGeneration(canvasId, nodes, edges, onNodesChange as OnNodesChange<WorkbenchNode>);
+  useCanvasJobEvents(canvasId, nodes, onNodesChange as OnNodesChange<WorkbenchNode>);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) || null,
@@ -76,7 +63,7 @@ export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
   );
 
   const addNode = (node: WorkbenchNode) => {
-    onNodesChange([{ type: "add", item: node }]);
+    setNodes((current) => [...current, node]);
     setSelectedNodeId(node.id);
   };
 
@@ -147,7 +134,7 @@ export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
         onUpload={uploadToCanvas}
       />
       <section className="canvas-main">
-        <CanvasToolbar onFitView={() => reactFlow.fitView()} subtitle={`Liveblocks collaborative room: canvas:${canvasId}`} />
+        <CanvasToolbar onFitView={() => reactFlow.fitView()} subtitle="Local canvas mode (collaboration unavailable)" />
         <div className="canvas-surface">
           <ReactFlow
             nodes={nodesWithActions}
@@ -156,21 +143,19 @@ export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
             onNodesChange={handleNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onDelete={onDelete}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             fitView
           >
             <Background />
             <Controls />
             <MiniMap />
-            <Cursors />
           </ReactFlow>
         </div>
       </section>
       <CanvasRightPanel
         canvasId={canvasId}
         selectedNode={selectedNode}
-        onNodesChange={onNodesChange}
+        onNodesChange={onNodesChange as OnNodesChange<WorkbenchNode>}
         onGenerate={generate}
       />
     </div>

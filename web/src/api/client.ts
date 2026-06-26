@@ -229,6 +229,20 @@ export async function listProjects(): Promise<Project[]> {
   return res.json();
 }
 
+export async function createProject(payload: {
+  name: string;
+  description: string;
+  members?: Array<{ user_id: number; role: string }>;
+}): Promise<Project> {
+  const res = await fetch("/api/projects", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ ...payload, members: payload.members ?? [] }),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to create project");
+  return res.json();
+}
+
 export async function getProject(projectId: number): Promise<Project> {
   const res = await fetch(`/api/projects/${projectId}`, { headers: authHeaders() });
   if (!res.ok) await throwApiError(res, "Failed to load project");

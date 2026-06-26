@@ -8,12 +8,24 @@ export type User = {
 export type Asset = {
   id: number;
   project_id?: number | null;
+  folder_id?: number | null;
   kind: "image" | "audio" | "video" | "document";
   original_filename: string;
   mime_type: string;
   size_bytes: number;
   created_at: string;
   uploaded_by_username?: string;
+};
+
+export type AssetFolder = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  scope: "assets" | "videos";
+  asset_count: number;
+  created_by?: number | null;
+  created_at: string;
+  updated_at?: string;
 };
 
 export type ProjectRole = "owner" | "editor" | "viewer";

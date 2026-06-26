@@ -1,5 +1,6 @@
 import type {
   Asset,
+  AssetFolder,
   Job,
   NodeVersion,
   Project,
@@ -188,9 +189,17 @@ export async function createInvite(
 
 // ── Assets ──────────────────────────────────────────────────────────────
 
-export async function listAssets(kind?: string): Promise<Asset[]> {
-  const params = kind ? `?kind=${encodeURIComponent(kind)}` : "";
-  const res = await fetch(`/api/assets${params}`, { headers: authHeaders() });
+export async function listAssets(
+  kind?: string,
+  folderId?: number | null
+): Promise<Asset[]> {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
+  if (folderId != null) params.set("folder_id", String(folderId));
+  const qs = params.toString();
+  const res = await fetch(`/api/assets${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error("Failed to load assets");
   return res.json();
 }
@@ -198,12 +207,12 @@ export async function listAssets(kind?: string): Promise<Asset[]> {
 export async function uploadAsset(
   kind: string,
   file: File,
-  folderId?: number
+  folderId?: number | null
 ): Promise<Asset> {
   const form = new FormData();
   form.append("kind", kind);
   form.append("file", file);
-  if (folderId) form.append("folder_id", String(folderId));
+  if (folderId != null) form.append("folder_id", String(folderId));
 
   const headers: Record<string, string> = {};
   if (_token) headers["Authorization"] = `Bearer ${_token}`;
@@ -219,6 +228,56 @@ export async function uploadAsset(
 
 export function assetUrl(assetId: number): string {
   return `/files/assets/${assetId}`;
+}
+
+// ── Folders ──────────────────────────────────────────────────────────────
+
+export type FolderScope = "assets" | "videos";
+
+export async function listAssetFolders(
+  scope: FolderScope = "assets",
+  parentId?: number | null
+): Promise<AssetFolder[]> {
+  const params = new URLSearchParams();
+  params.set("scope", scope);
+  if (parentId != null) params.set("parent_id", String(parentId));
+  const res = await fetch(`/api/folders?${params.toString()}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to load folders");
+  return res.json();
+}
+
+export async function createAssetFolder(
+  name: string,
+  scope: FolderScope = "assets",
+  parentId?: number | null
+): Promise<AssetFolder> {
+  const res = await fetch("/api/folders", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ scope, name, parent_id: parentId ?? null }),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to create folder");
+  return res.json();
+}
+
+export async function renameAssetFolder(id: number, name: string): Promise<AssetFolder> {
+  const res = await fetch(`/api/folders/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to rename folder");
+  return res.json();
+}
+
+export async function deleteAssetFolder(id: number): Promise<void> {
+  const res = await fetch(`/api/folders/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to delete folder");
 }
 
 // ── Projects ───────────────────────────────────────────────────────────

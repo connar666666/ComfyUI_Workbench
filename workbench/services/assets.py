@@ -43,5 +43,8 @@ class AssetService:
         user_id: int | None = None,
         role: str | None = None,
         project_id: int | None = None,
+        folder_id: int | None = None,
     ) -> list[dict]:
-        return self.repo.list_assets(kind=kind, user_id=user_id, role=role, project_id=project_id)
+        return self.repo.list_assets(
+            kind=kind, user_id=user_id, role=role, project_id=project_id, folder_id=folder_id,
+        )

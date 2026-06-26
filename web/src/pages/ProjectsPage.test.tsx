@@ -43,8 +43,8 @@ describe("ProjectsPage", () => {
       expect(screen.getByText("Campaign")).toBeInTheDocument();
     });
     expect(screen.getByText("Launch work")).toBeInTheDocument();
-    expect(screen.getByText("owner")).toBeInTheDocument();
-    expect(screen.getByText("3 members")).toBeInTheDocument();
+    expect(screen.getByText("OWNER")).toBeInTheDocument();
+    expect(screen.getByText("3 成员")).toBeInTheDocument();
   });
 
   it("creates a project from the project list", async () => {
@@ -79,10 +79,10 @@ describe("ProjectsPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("暂无项目。")).toBeInTheDocument();
+      expect(screen.getByText(/暂无项目/)).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "新建项目" }));
+    fireEvent.click(screen.getByRole("button", { name: "创建新项目" }));
     fireEvent.change(screen.getByLabelText("项目名称"), { target: { value: "New Film" } });
     fireEvent.change(screen.getByLabelText("项目描述"), { target: { value: "Storyboard exploration" } });
     fireEvent.click(screen.getByRole("button", { name: "创建项目" }));

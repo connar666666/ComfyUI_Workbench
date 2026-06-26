@@ -24,3 +24,6 @@ web/dist/
 
 # Storage (generated at runtime)
 ~/.openclaw/
+
+.superpowers/
+tmp

@@ -1,18 +1,31 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import uuid
 from pathlib import Path
 from typing import Any
 
-import sqlite3
-
-from .db import connect_db, utc_now
+from .config import load_settings
+from .db import connect_db, database_url_for_schema, utc_now
 from .errors import ConflictError, NotFoundError, PermissionDeniedError
 
 
 class WorkbenchRepository:
-    def __init__(self, db_path: Path):
-        self.db_path = db_path
+    def __init__(self, database_url: str | Path):
+        value = str(database_url)
+        if value.endswith(".sqlite") or value.endswith(".db"):
+            digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
+            value = database_url_for_schema(load_settings().database_url, f"workbench_{digest}")
+        self.db_path = value
+
+    @staticmethod
+    def _is_uuid(value: Any) -> bool:
+        try:
+            uuid.UUID(str(value))
+            return True
+        except (TypeError, ValueError, AttributeError):
+            return False
 
     # ── Users ──────────────────────────────────────────────────────────
 
@@ -24,11 +37,21 @@ class WorkbenchRepository:
         return dict(row)
 
     def get_user_by_id(self, user_id: int) -> dict[str, Any]:
+        if not self._is_uuid(user_id):
+            raise NotFoundError(f"user #{user_id}")
         with connect_db(self.db_path) as conn:
             row = conn.execute("select * from users where id = ?", (user_id,)).fetchone()
         if row is None:
             raise NotFoundError(f"user #{user_id}")
         return dict(row)
+
+    def resolve_user_id(self, user_id: Any, username: str | None = None) -> str:
+        try:
+            return self.get_user_by_id(str(user_id))["id"]
+        except Exception:
+            if username:
+                return self.get_user_by_username(username)["id"]
+            raise
 
     def create_user(
         self,
@@ -92,6 +115,8 @@ class WorkbenchRepository:
         return self.get_project(project_id)
 
     def get_project(self, project_id: int) -> dict[str, Any]:
+        if not self._is_uuid(project_id):
+            raise NotFoundError(project_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute("select * from projects where id = ? and archived_at is null", (project_id,)).fetchone()
         if row is None:
@@ -196,22 +221,25 @@ class WorkbenchRepository:
         *,
         scope: str,
         name: str,
-        parent_id: int | None,
-        created_by: int | None,
-    ) -> int:
+        parent_id: str | None,
+        project_id: str | None,
+        created_by: str | None,
+    ) -> str:
         now = utc_now()
         with connect_db(self.db_path) as conn:
             cur = conn.execute(
                 """
-                insert into folders(parent_id, scope, name, created_by, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?)
+                insert into folders(project_id, parent_id, scope, name, created_by, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (parent_id, scope, name, created_by, now, now),
+                (project_id, parent_id, scope, name, created_by, now, now),
             )
             conn.commit()
             return cur.lastrowid
 
     def get_folder(self, folder_id: int) -> dict[str, Any]:
+        if not self._is_uuid(folder_id):
+            raise NotFoundError(folder_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute(
                 """
@@ -235,7 +263,8 @@ class WorkbenchRepository:
         self,
         *,
         scope: str,
-        parent_id: int | None = None,
+        parent_id: str | None = None,
+        project_id: str | None = None,
     ) -> list[dict[str, Any]]:
         sql = """
             select f.*, coalesce(cnt.c, 0) as asset_count
@@ -249,6 +278,11 @@ class WorkbenchRepository:
             where f.scope = ?
         """
         params: list[Any] = [scope]
+        if project_id is None:
+            sql += " and f.project_id is null"
+        else:
+            sql += " and f.project_id = ?"
+            params.append(project_id)
         if parent_id is None:
             sql += " and f.parent_id is null"
         else:
@@ -270,6 +304,10 @@ class WorkbenchRepository:
 
     def delete_folder(self, folder_id: int) -> None:
         with connect_db(self.db_path) as conn:
+            conn.execute(
+                "update assets set folder_id = null where folder_id = ? and deleted_at is not null",
+                (folder_id,),
+            )
             conn.execute("delete from folders where id = ?", (folder_id,))
             conn.commit()
 
@@ -294,11 +332,17 @@ class WorkbenchRepository:
         *,
         scope: str,
         name: str,
-        parent_id: int | None,
-        exclude_id: int | None = None,
+        parent_id: str | None,
+        project_id: str | None = None,
+        exclude_id: str | None = None,
     ) -> dict[str, Any] | None:
         sql = "select * from folders where scope = ? and name = ?"
         params: list[Any] = [scope, name]
+        if project_id is None:
+            sql += " and project_id is null"
+        else:
+            sql += " and project_id = ?"
+            params.append(project_id)
         if parent_id is None:
             sql += " and parent_id is null"
         else:
@@ -353,8 +397,12 @@ class WorkbenchRepository:
                 return False
             r = dict(row)
             from datetime import datetime, timezone
-            if r["expires_at"] and r["expires_at"] < datetime.now(timezone.utc).isoformat():
-                return False
+            expires_at = r["expires_at"]
+            if expires_at:
+                if isinstance(expires_at, str):
+                    expires_at = datetime.fromisoformat(expires_at)
+                if expires_at < datetime.now(timezone.utc):
+                    return False
             if r["max_uses"] is not None and r["use_count"] >= r["max_uses"]:
                 return False
             conn.execute(
@@ -396,26 +444,77 @@ class WorkbenchRepository:
         sha256: str,
         uploaded_by: int,
         folder_id: int | None,
+        storage_provider: str = "MINIO",
+        endpoint: str | None = None,
+        bucket: str | None = None,
     ) -> dict[str, Any]:
         now = utc_now()
         with connect_db(self.db_path) as conn:
+            oss_object_id = None
+            if bucket:
+                object_type = {
+                    "image": "IMAGE",
+                    "audio": "AUDIO",
+                    "video": "VIDEO",
+                    "document": "OTHER",
+                }.get(kind, "OTHER")
+                oss_cur = conn.execute(
+                    """
+                    insert into oss_objects(
+                      project_id, storage_provider, endpoint, bucket, object_key,
+                      original_filename, mime_type, object_type, size_bytes, sha256,
+                      status, created_by, created_at
+                    )
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'READY', ?, ?)
+                    on conflict(bucket, object_key) do update set
+                      sha256 = excluded.sha256,
+                      size_bytes = excluded.size_bytes,
+                      status = excluded.status
+                    """,
+                    (
+                        project_id,
+                        storage_provider,
+                        endpoint,
+                        bucket,
+                        storage_key,
+                        original_filename,
+                        mime_type,
+                        object_type,
+                        size_bytes,
+                        sha256,
+                        uploaded_by,
+                        now,
+                    ),
+                )
+                oss_object_id = oss_cur.lastrowid
             cur = conn.execute(
                 """
-                insert into assets(project_id, folder_id, kind, original_filename, storage_key, mime_type,
+                insert into assets(project_id, folder_id, oss_object_id, kind, original_filename, storage_key, mime_type,
                                    size_bytes, sha256, uploaded_by, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (project_id, folder_id, kind, original_filename, storage_key, mime_type, size_bytes, sha256, uploaded_by, now, now),
+                (project_id, folder_id, oss_object_id, kind, original_filename, storage_key, mime_type, size_bytes, sha256, uploaded_by, now, now),
             )
             conn.commit()
             return self.get_asset(cur.lastrowid)
 
     def get_asset(self, asset_id: int) -> dict[str, Any]:
+        if not self._is_uuid(asset_id):
+            raise NotFoundError(asset_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute("select * from assets where id = ? and deleted_at is null", (asset_id,)).fetchone()
         if row is None:
             raise NotFoundError(asset_id)
         return dict(row)
+
+    def delete_asset(self, asset_id: str) -> None:
+        now = utc_now()
+        with connect_db(self.db_path) as conn:
+            conn.execute(
+                "update assets set deleted_at = ?, updated_at = ? where id = ? and deleted_at is null",
+                (now, now, asset_id),
+            )
+            conn.commit()
 
     def list_assets(
         self,
@@ -504,6 +603,8 @@ class WorkbenchRepository:
         return self.get_job(job_id)
 
     def get_job(self, job_id: int) -> dict[str, Any]:
+        if not self._is_uuid(job_id):
+            raise NotFoundError(job_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute(
                 "select j.*, u.username as created_by_username from generation_jobs j left join users u on j.created_by = u.id where j.id = ?",
@@ -555,7 +656,7 @@ class WorkbenchRepository:
             cur = conn.execute(
                 """
                 insert into project_workflows(project_id, workflow_id, display_name, sort_order, defaults_json, enabled, created_by, created_at, updated_at)
-                values (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                values (?, ?, ?, ?, ?, true, ?, ?, ?)
                 """,
                 (project_id, workflow_id, display_name, row["next_order"], defaults_json, created_by, now, now),
             )
@@ -563,6 +664,8 @@ class WorkbenchRepository:
         return self.get_project_workflow(cur.lastrowid)
 
     def get_project_workflow(self, project_workflow_id: int) -> dict[str, Any]:
+        if not self._is_uuid(project_workflow_id):
+            raise NotFoundError(project_workflow_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute("select * from project_workflows where id = ?", (project_workflow_id,)).fetchone()
         if row is None:
@@ -644,6 +747,8 @@ class WorkbenchRepository:
         return self.get_remote_workflow_run(run_id)
 
     def get_remote_workflow_run(self, run_id: int) -> dict[str, Any]:
+        if not self._is_uuid(run_id):
+            raise NotFoundError(run_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute(
                 """
@@ -724,15 +829,19 @@ class WorkbenchRepository:
 
     @staticmethod
     def _decode_project_workflow(row: dict[str, Any]) -> dict[str, Any]:
-        row["defaults"] = json.loads(row.pop("defaults_json") or "{}")
+        defaults = row.pop("defaults_json") or {}
+        row["defaults"] = defaults if isinstance(defaults, dict) else json.loads(defaults)
         row["enabled"] = bool(row["enabled"])
         return row
 
     @staticmethod
     def _decode_remote_workflow_run(row: dict[str, Any]) -> dict[str, Any]:
-        row["input_values"] = json.loads(row.pop("input_values_json") or "{}")
-        row["results"] = json.loads(row.pop("results_json") or "[]")
-        row["saved_asset_ids"] = json.loads(row.pop("saved_asset_ids_json") or "[]")
+        input_values = row.pop("input_values_json") or {}
+        results = row.pop("results_json") or []
+        saved_asset_ids = row.pop("saved_asset_ids_json") or []
+        row["input_values"] = input_values if isinstance(input_values, dict) else json.loads(input_values)
+        row["results"] = results if isinstance(results, list) else json.loads(results)
+        row["saved_asset_ids"] = saved_asset_ids if isinstance(saved_asset_ids, list) else json.loads(saved_asset_ids)
         return row
 
     def next_node_version_number(self, canvas_id: str, node_id: str) -> int:
@@ -919,6 +1028,8 @@ class WorkbenchRepository:
             ).fetchall()]
 
     def get_video(self, video_id: int) -> dict[str, Any]:
+        if not self._is_uuid(video_id):
+            raise NotFoundError(video_id)
         with connect_db(self.db_path) as conn:
             row = conn.execute(
                 "select v.*, u.username as created_by_username from videos v left join users u on v.created_by = u.id where v.id = ? and v.deleted_at is null",

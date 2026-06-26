@@ -15,13 +15,13 @@ describe("resolveNodeInputs", () => {
         id: "image-1",
         type: "asset",
         position: { x: 0, y: 120 },
-        data: { title: "Image", assetId: 10, assetKind: "image" },
+        data: { title: "Image", assetId: "10", assetKind: "image" },
       },
       {
         id: "audio-1",
         type: "asset",
         position: { x: 0, y: 240 },
-        data: { title: "Audio", assetId: 20, assetKind: "audio" },
+        data: { title: "Audio", assetId: "20", assetKind: "audio" },
       },
       {
         id: "vg-1",
@@ -44,7 +44,7 @@ describe("resolveNodeInputs", () => {
     const result = resolveNodeInputs(nodes, edges, "vg-1");
 
     expect(result.prompt).toBe("rainy city");
-    expect(result.reference_image_asset_id).toBe(10);
-    expect(result.reference_audio_asset_id).toBe(20);
+    expect(result.reference_image_asset_id).toBe("10");
+    expect(result.reference_audio_asset_id).toBe("20");
   });
 });

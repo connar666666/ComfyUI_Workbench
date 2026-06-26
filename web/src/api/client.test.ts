@@ -105,4 +105,72 @@ describe("auth API errors", () => {
       })
     );
   });
+
+  it("uses UUID project ids in project-scoped URLs", async () => {
+    const projectId = "0765e635-f4c0-4176-a292-1bed4837c0ab";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: projectId, name: "Campaign" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = await import("./client");
+    await client.getProject(projectId);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/projects/${projectId}`,
+      expect.any(Object)
+    );
+  });
+
+  it("passes project ids to folder and project asset APIs", async () => {
+    const projectId = "0765e635-f4c0-4176-a292-1bed4837c0ab";
+    const folderId = "9feb0927-8652-4a92-a51e-ca403f3b900f";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = await import("./client");
+    await client.listAssetFolders("assets", null, projectId);
+    await client.listProjectAssets(projectId, undefined, folderId);
+    await client.createAssetFolder("References", "assets", null, projectId);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `/api/folders?scope=assets&project_id=${projectId}`,
+      expect.any(Object)
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/projects/${projectId}/assets?folder_id=${folderId}`,
+      expect.any(Object)
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/folders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ scope: "assets", name: "References", parent_id: null, project_id: projectId }),
+      })
+    );
+  });
+
+  it("deletes assets through the authenticated API client", async () => {
+    const assetId = "938f13b9-03ca-4129-897c-4452254932a6";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = await import("./client");
+    await client.deleteAsset(assetId);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/assets/${assetId}`,
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
 });

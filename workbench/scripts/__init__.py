@@ -6,8 +6,8 @@ from workbench.db import initialize_db
 
 def main() -> None:
     settings = load_settings()
-    initialize_db(settings.db_path, settings.default_user, settings.default_role)
-    print(f"initialized workbench database: {settings.db_path}")
+    initialize_db(settings.database_url, settings.default_user, settings.default_role)
+    print(f"initialized workbench database: {settings.database_url}")
 
 
 if __name__ == "__main__":

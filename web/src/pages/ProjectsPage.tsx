@@ -18,8 +18,9 @@ const COVER_GRADIENTS = [
   "linear-gradient(135deg, #ca8100 0%, #4edea3 100%)",
 ];
 
-function pickGradient(seed: number): string {
-  const idx = Math.abs(Math.floor(seed)) % COVER_GRADIENTS.length;
+function pickGradient(seed: string): string {
+  const total = Array.from(seed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const idx = total % COVER_GRADIENTS.length;
   return COVER_GRADIENTS[idx];
 }
 

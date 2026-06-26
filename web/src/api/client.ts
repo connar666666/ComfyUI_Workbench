@@ -191,7 +191,7 @@ export async function createInvite(
 
 export async function listAssets(
   kind?: string,
-  folderId?: number | null
+  folderId?: string | null
 ): Promise<Asset[]> {
   const params = new URLSearchParams();
   if (kind) params.set("kind", kind);
@@ -207,7 +207,7 @@ export async function listAssets(
 export async function uploadAsset(
   kind: string,
   file: File,
-  folderId?: number | null
+  folderId?: string | null
 ): Promise<Asset> {
   const form = new FormData();
   form.append("kind", kind);
@@ -226,8 +226,16 @@ export async function uploadAsset(
   return res.json();
 }
 
-export function assetUrl(assetId: number): string {
+export function assetUrl(assetId: string): string {
   return `/files/assets/${assetId}`;
+}
+
+export async function deleteAsset(assetId: string): Promise<void> {
+  const res = await fetch(`/api/assets/${assetId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to delete asset");
 }
 
 // ── Folders ──────────────────────────────────────────────────────────────
@@ -236,11 +244,13 @@ export type FolderScope = "assets" | "videos";
 
 export async function listAssetFolders(
   scope: FolderScope = "assets",
-  parentId?: number | null
+  parentId?: string | null,
+  projectId?: string | null
 ): Promise<AssetFolder[]> {
   const params = new URLSearchParams();
   params.set("scope", scope);
   if (parentId != null) params.set("parent_id", String(parentId));
+  if (projectId != null) params.set("project_id", String(projectId));
   const res = await fetch(`/api/folders?${params.toString()}`, {
     headers: authHeaders(),
   });
@@ -251,18 +261,19 @@ export async function listAssetFolders(
 export async function createAssetFolder(
   name: string,
   scope: FolderScope = "assets",
-  parentId?: number | null
+  parentId?: string | null,
+  projectId?: string | null
 ): Promise<AssetFolder> {
   const res = await fetch("/api/folders", {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ scope, name, parent_id: parentId ?? null }),
+    body: JSON.stringify({ scope, name, parent_id: parentId ?? null, project_id: projectId ?? null }),
   });
   if (!res.ok) await throwApiError(res, "Failed to create folder");
   return res.json();
 }
 
-export async function renameAssetFolder(id: number, name: string): Promise<AssetFolder> {
+export async function renameAssetFolder(id: string, name: string): Promise<AssetFolder> {
   const res = await fetch(`/api/folders/${id}`, {
     method: "PATCH",
     headers: authHeaders(),
@@ -272,7 +283,7 @@ export async function renameAssetFolder(id: number, name: string): Promise<Asset
   return res.json();
 }
 
-export async function deleteAssetFolder(id: number): Promise<void> {
+export async function deleteAssetFolder(id: string): Promise<void> {
   const res = await fetch(`/api/folders/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
@@ -291,7 +302,7 @@ export async function listProjects(): Promise<Project[]> {
 export async function createProject(payload: {
   name: string;
   description: string;
-  members?: Array<{ user_id: number; role: string }>;
+  members?: Array<{ user_id: string; role: string }>;
 }): Promise<Project> {
   const res = await fetch("/api/projects", {
     method: "POST",
@@ -302,22 +313,36 @@ export async function createProject(payload: {
   return res.json();
 }
 
-export async function getProject(projectId: number): Promise<Project> {
+export async function getProject(projectId: string): Promise<Project> {
   const res = await fetch(`/api/projects/${projectId}`, { headers: authHeaders() });
   if (!res.ok) await throwApiError(res, "Failed to load project");
   return res.json();
 }
 
-export async function listProjectAssets(projectId: number): Promise<Asset[]> {
-  const res = await fetch(`/api/projects/${projectId}/assets`, { headers: authHeaders() });
+export async function listProjectAssets(
+  projectId: string,
+  kind?: string,
+  folderId?: string | null
+): Promise<Asset[]> {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
+  if (folderId != null) params.set("folder_id", String(folderId));
+  const qs = params.toString();
+  const res = await fetch(`/api/projects/${projectId}/assets${qs ? `?${qs}` : ""}`, { headers: authHeaders() });
   if (!res.ok) await throwApiError(res, "Failed to load project assets");
   return res.json();
 }
 
-export async function uploadProjectAsset(projectId: number, kind: string, file: File): Promise<Asset> {
+export async function uploadProjectAsset(
+  projectId: string,
+  kind: string,
+  file: File,
+  folderId?: string | null
+): Promise<Asset> {
   const form = new FormData();
   form.append("kind", kind);
   form.append("file", file);
+  if (folderId != null) form.append("folder_id", String(folderId));
 
   const headers: Record<string, string> = {};
   if (_token) headers["Authorization"] = `Bearer ${_token}`;
@@ -331,14 +356,14 @@ export async function uploadProjectAsset(projectId: number, kind: string, file: 
   return res.json();
 }
 
-export async function listProjectWorkflows(projectId: number): Promise<ProjectWorkflow[]> {
+export async function listProjectWorkflows(projectId: string): Promise<ProjectWorkflow[]> {
   const res = await fetch(`/api/projects/${projectId}/workflows`, { headers: authHeaders() });
   if (!res.ok) await throwApiError(res, "Failed to load project workflows");
   return res.json();
 }
 
 export async function addProjectWorkflow(
-  projectId: number,
+  projectId: string,
   payload: { workflow_id: string; display_name?: string | null; defaults?: Record<string, unknown> }
 ): Promise<ProjectWorkflow> {
   const res = await fetch(`/api/projects/${projectId}/workflows`, {
@@ -351,8 +376,8 @@ export async function addProjectWorkflow(
 }
 
 export async function runProjectWorkflow(
-  projectId: number,
-  projectWorkflowId: number,
+  projectId: string,
+  projectWorkflowId: string,
   inputValues: Record<string, unknown>
 ): Promise<ProjectRemoteRun> {
   const res = await fetch(`/api/projects/${projectId}/workflows/${projectWorkflowId}/runs`, {
@@ -364,7 +389,7 @@ export async function runProjectWorkflow(
   return res.json();
 }
 
-export async function refreshProjectRemoteRun(projectId: number, runId: number): Promise<ProjectRemoteRun> {
+export async function refreshProjectRemoteRun(projectId: string, runId: string): Promise<ProjectRemoteRun> {
   const res = await fetch(`/api/projects/${projectId}/remote-runs/${runId}/refresh`, {
     method: "POST",
     headers: authHeaders(),
@@ -373,7 +398,7 @@ export async function refreshProjectRemoteRun(projectId: number, runId: number):
   return res.json();
 }
 
-export async function listProjectHistory(projectId: number): Promise<ProjectHistoryItem[]> {
+export async function listProjectHistory(projectId: string): Promise<ProjectHistoryItem[]> {
   const res = await fetch(`/api/projects/${projectId}/history`, { headers: authHeaders() });
   if (!res.ok) await throwApiError(res, "Failed to load project history");
   return res.json();
@@ -392,11 +417,11 @@ export async function createJob(payload: {
   duration_sec: number;
   resolution: string;
   audio_start_sec: number;
-  reference_image_asset_id?: number | null;
-  reference_audio_asset_id?: number | null;
+  reference_image_asset_id?: string | null;
+  reference_audio_asset_id?: string | null;
   canvas_id?: string | null;
   canvas_node_id?: string | null;
-  canvas_version_id?: number | null;
+  canvas_version_id?: string | null;
 }): Promise<Job> {
   const res = await fetch("/api/jobs", {
     method: "POST",
@@ -410,7 +435,7 @@ export async function createJob(payload: {
   return res.json();
 }
 
-export async function cancelJob(jobId: number): Promise<Job> {
+export async function cancelJob(jobId: string): Promise<Job> {
   const res = await fetch(`/api/jobs/${jobId}/cancel`, {
     method: "POST",
     headers: authHeaders(),
@@ -430,7 +455,7 @@ export async function listVideos(): Promise<Video[]> {
   return res.json();
 }
 
-export function videoUrl(videoId: number): string {
+export function videoUrl(videoId: string): string {
   return `/files/videos/${videoId}`;
 }
 

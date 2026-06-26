@@ -22,7 +22,7 @@ export function AssetNode({ data }: NodeProps<AssetNodeType>) {
         </div>
       </div>
       {data.assetKind === "image" ? (
-        <img className="canvas-node-preview" src={assetUrl(data.assetId)} alt={data.fileName || data.title} />
+        <img className="canvas-node-preview" src={assetUrl(String(data.assetId))} alt={data.fileName || data.title} />
       ) : (
         <p className="canvas-node-text">{data.fileName || `Asset #${data.assetId}`}</p>
       )}

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Literal
+
+import psycopg
 
 from ..auth import CurrentUser
 from ..errors import ConflictError, ValidationError
+from ..permissions import require_project_role
 from ..repositories import WorkbenchRepository
 
 
@@ -20,11 +22,15 @@ class FolderService:
     def list_folders(
         self,
         *,
+        user: CurrentUser,
         scope: FolderScope = "assets",
-        parent_id: int | None = None,
+        parent_id: str | None = None,
+        project_id: str | None = None,
     ) -> list[dict[str, Any]]:
         self._validate_scope(scope)
-        return self.repo.list_folders(scope=scope, parent_id=parent_id)
+        if project_id is not None:
+            require_project_role(self.repo, user, project_id, {"owner", "editor", "viewer"})
+        return self.repo.list_folders(scope=scope, parent_id=parent_id, project_id=project_id)
 
     def create_folder(
         self,
@@ -32,26 +38,33 @@ class FolderService:
         user: CurrentUser,
         scope: FolderScope = "assets",
         name: str,
-        parent_id: int | None = None,
+        parent_id: str | None = None,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         self._validate_scope(scope)
         clean_name = self._validate_name(name)
+        if project_id is not None:
+            require_project_role(self.repo, user, project_id, {"owner", "editor"})
         if parent_id is not None:
-            self._get_folder_or_raise(parent_id, scope=scope)
+            parent = self._get_folder_or_raise(parent_id, scope=scope)
+            if parent["project_id"] != project_id:
+                raise ValidationError("parent folder belongs to a different project")
         if self.repo.find_folder_by_name(
-            scope=scope, name=clean_name, parent_id=parent_id,
+            scope=scope, name=clean_name, parent_id=parent_id, project_id=project_id,
         ) is not None:
             raise ConflictError(
                 f"a folder named '{clean_name}' already exists in this location"
             )
         try:
+            actor_id = self.repo.resolve_user_id(user.id, user.username)
             folder_id = self.repo.create_folder(
                 scope=scope,
                 name=clean_name,
                 parent_id=parent_id,
-                created_by=user.id,
+                project_id=project_id,
+                created_by=actor_id,
             )
-        except sqlite3.IntegrityError as exc:
+        except psycopg.IntegrityError as exc:
             raise ConflictError(
                 f"a folder named '{clean_name}' already exists in this location"
             ) from exc
@@ -60,12 +73,15 @@ class FolderService:
     def rename_folder(self, *, user: CurrentUser, folder_id: int, name: str) -> dict[str, Any]:
         clean_name = self._validate_name(name)
         existing = self.repo.get_folder(folder_id)
+        if existing["project_id"] is not None:
+            require_project_role(self.repo, user, existing["project_id"], {"owner", "editor"})
         if existing["scope"] != "assets":
             raise ValidationError("folder rename is only supported for assets scope")
         if self.repo.find_folder_by_name(
             scope=existing["scope"],
             name=clean_name,
             parent_id=existing["parent_id"],
+            project_id=existing["project_id"],
             exclude_id=folder_id,
         ) is not None:
             raise ConflictError(
@@ -73,7 +89,7 @@ class FolderService:
             )
         try:
             self.repo.rename_folder(folder_id, clean_name)
-        except sqlite3.IntegrityError as exc:
+        except psycopg.IntegrityError as exc:
             raise ConflictError(
                 f"a folder named '{clean_name}' already exists in this location"
             ) from exc
@@ -81,6 +97,8 @@ class FolderService:
 
     def delete_folder(self, *, user: CurrentUser, folder_id: int) -> None:
         folder = self.repo.get_folder(folder_id)
+        if folder["project_id"] is not None:
+            require_project_role(self.repo, user, folder["project_id"], {"owner", "editor"})
         if folder["scope"] != "assets":
             raise ValidationError("folder delete is only supported for assets scope")
         asset_count = self.repo.count_assets_in_folder(folder_id)

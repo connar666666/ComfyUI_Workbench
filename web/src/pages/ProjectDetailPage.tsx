@@ -114,7 +114,7 @@ function previewForResult(item: RemoteWorkflowResultItem) {
 
 export function ProjectDetailPage() {
   const { projectId } = useParams();
-  const id = Number(projectId);
+  const id = projectId ?? "";
   const [project, setProject] = useState<Project | null>(null);
   const [workflows, setWorkflows] = useState<ProjectWorkflow[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -122,10 +122,10 @@ export function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState<"workflows" | "assets" | "history">("workflows");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [runningId, setRunningId] = useState<number | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<ProjectRemoteRun | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [selectedProjectWorkflowId, setSelectedProjectWorkflowId] = useState<number | null>(null);
+  const [selectedProjectWorkflowId, setSelectedProjectWorkflowId] = useState<string | null>(null);
   const [workflowDetail, setWorkflowDetail] = useState<RemoteWorkflowDetail | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -140,7 +140,7 @@ export function ProjectDetailPage() {
   const fields = buildFields(workflowDetail, selectedWorkflow?.defaults ?? {});
 
   const loadProjectData = useCallback(async () => {
-    if (!Number.isFinite(id)) return;
+    if (!id) return;
     const [projectData, workflowData, assetData, historyData] = await Promise.all([
       getProject(id),
       listProjectWorkflows(id),

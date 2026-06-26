@@ -162,6 +162,23 @@ export function ProjectDetailPage() {
   }, [loadProjectData]);
 
   useEffect(() => {
+    if (!project) return;
+    try {
+      localStorage.setItem(
+        "workbench.currentProject",
+        JSON.stringify({
+          id: String(project.id),
+          name: project.name,
+          memberCount: project.member_count ?? project.members?.length ?? 0,
+        }),
+      );
+      window.dispatchEvent(new Event("workbench:current-project-changed"));
+    } catch {
+      // localStorage unavailable; skip.
+    }
+  }, [project]);
+
+  useEffect(() => {
     if (!workflows.length) {
       setSelectedProjectWorkflowId(null);
       return;

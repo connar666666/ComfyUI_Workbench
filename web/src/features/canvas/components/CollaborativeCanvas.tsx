@@ -19,7 +19,9 @@ import { useCanvasJobEvents } from "../hooks/useCanvasJobEvents";
 import { nodeTypes } from "../nodes/nodeTypes";
 import { CanvasRightPanel } from "./CanvasRightPanel";
 import { CanvasSidebar } from "./CanvasSidebar";
+import { CanvasTaskbar } from "./CanvasTaskbar";
 import { CanvasToolbar } from "./CanvasToolbar";
+import { CanvasTopbar } from "./CanvasTopbar";
 
 type CollaborativeCanvasProps = {
   canvasId: string;
@@ -133,7 +135,9 @@ export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
   };
 
   return (
-    <div className="canvas-workspace">
+    <div className="canvas-shell">
+      <CanvasTopbar />
+      <div className="canvas-workspace">
       <CanvasSidebar
         assets={assets}
         kindFilter={kindFilter}
@@ -160,9 +164,14 @@ export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             fitView
           >
-            <Background />
+            <Background color="rgba(208, 188, 255, 0.10)" gap={24} size={1} />
             <Controls />
-            <MiniMap />
+            <MiniMap
+              maskColor="rgba(11, 19, 38, 0.85)"
+              nodeColor="#d0bcff"
+              nodeStrokeColor="#4edea3"
+              style={{ background: "rgba(23, 31, 51, 0.85)", border: "1px solid rgba(208, 188, 255, 0.10)" }}
+            />
             <Cursors />
           </ReactFlow>
         </div>
@@ -172,7 +181,10 @@ export function CollaborativeCanvas({ canvasId }: CollaborativeCanvasProps) {
         selectedNode={selectedNode}
         onNodesChange={onNodesChange}
         onGenerate={generate}
+        incomingEdges={selectedNode ? edges.filter((edge) => edge.target === selectedNode.id) : []}
       />
+    </div>
+      <CanvasTaskbar />
     </div>
   );
 }

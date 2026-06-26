@@ -13,7 +13,11 @@ export function ComfyQueuePage() {
       try {
         const data = await getQueueStatus();
         if (active) { setQueue(data); setLastUpdate(new Date()); setError(""); }
-      } catch { if (active) setError("无法连接到 ComfyUI 队列"); }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "无法连接到 ComfyUI 队列");
+        }
+      }
     };
     poll();
     const interval = setInterval(poll, 3000);

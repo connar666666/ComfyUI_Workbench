@@ -2,14 +2,19 @@ import type { Asset, Job, NodeVersion, QueueStatus, User, Video } from "../types
 
 // ── Auth token helpers ──────────────────────────────────────────────────
 
-let _token: string | null = localStorage.getItem("workbench_token");
+function storage(): Storage | null {
+  return typeof globalThis !== "undefined" && "localStorage" in globalThis ? globalThis.localStorage : null;
+}
+
+let _token: string | null = storage()?.getItem("workbench_token") ?? null;
 
 export function setAuthToken(token: string | null) {
   _token = token;
+  const store = storage();
   if (token) {
-    localStorage.setItem("workbench_token", token);
+    store?.setItem("workbench_token", token);
   } else {
-    localStorage.removeItem("workbench_token");
+    store?.removeItem("workbench_token");
   }
 }
 
@@ -25,6 +30,62 @@ function authHeaders(): Record<string, string> {
   return headers;
 }
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function defaultAuthErrorMessage(status: number, fallback: string): string {
+  if (status === 403) return "Invalid username or password";
+  if (status === 409) return "Username is already taken";
+  return fallback;
+}
+
+export async function readApiError(
+  res: Response,
+  fallbackMessage: string,
+  useAuthDefaults: boolean = false
+): Promise<ApiError> {
+  let payload: Record<string, unknown> | null = null;
+  let text = "";
+
+  const contentType = res.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json")) {
+    payload = await res.json().catch(() => null);
+  } else {
+    text = await res.text().catch(() => "");
+    if (text) {
+      try {
+        payload = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        payload = null;
+      }
+    }
+  }
+
+  const messageFromPayload =
+    typeof payload?.message === "string"
+      ? payload.message
+      : typeof payload?.detail === "string"
+      ? payload.detail
+      : text.trim();
+
+  const message = messageFromPayload || (useAuthDefaults ? defaultAuthErrorMessage(res.status, fallbackMessage) : fallbackMessage);
+  const code = typeof payload?.error === "string" ? payload.error : undefined;
+  return new ApiError(message, res.status, code);
+}
+
+async function throwApiError(res: Response, fallbackMessage: string, useAuthDefaults: boolean = false): Promise<never> {
+  throw await readApiError(res, fallbackMessage, useAuthDefaults);
+}
+
 // ── Auth ────────────────────────────────────────────────────────────────
 
 export async function joinWithInvite(
@@ -38,8 +99,7 @@ export async function joinWithInvite(
     body: JSON.stringify({ token, username, display_name: displayName }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Invalid invite link");
+    await throwApiError(res, "Invalid invite link");
   }
   return res.json();
 }
@@ -55,8 +115,7 @@ export async function register(
     body: JSON.stringify({ username, password, display_name: displayName }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Registration failed");
+    await throwApiError(res, "Registration failed", true);
   }
   return res.json();
 }
@@ -71,8 +130,7 @@ export async function login(
     body: JSON.stringify({ username, password }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Login failed");
+    await throwApiError(res, "Login failed", true);
   }
   return res.json();
 }
@@ -206,7 +264,9 @@ export function videoUrl(videoId: number): string {
 
 export async function getQueueStatus(): Promise<QueueStatus> {
   const res = await fetch("/api/comfyui/queue", { headers: authHeaders() });
-  if (!res.ok) throw new Error("Failed to fetch queue status");
+  if (!res.ok) {
+    await throwApiError(res, "Failed to fetch queue status");
+  }
   return res.json();
 }
 

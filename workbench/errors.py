@@ -24,3 +24,8 @@ class ValidationError(WorkbenchError):
 class ConflictError(WorkbenchError):
     status_code = 409
     code = "conflict"
+
+
+class ServiceUnavailableError(WorkbenchError):
+    status_code = 503
+    code = "service_unavailable"

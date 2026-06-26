@@ -2,14 +2,15 @@ import { PanelTopClose, Redo2, Undo2 } from "lucide-react";
 
 type CanvasToolbarProps = {
   onFitView: () => void;
+  subtitle?: string;
 };
 
-export function CanvasToolbar({ onFitView }: CanvasToolbarProps) {
+export function CanvasToolbar({ onFitView, subtitle }: CanvasToolbarProps) {
   return (
     <div className="canvas-toolbar">
       <div>
         <h1>创作画布</h1>
-        <span>Liveblocks collaborative room: canvas:default</span>
+        <span>{subtitle || "Creative canvas"}</span>
       </div>
       <div className="canvas-toolbar-actions">
         <button type="button" className="btn-secondary btn-sm" title="Undo">

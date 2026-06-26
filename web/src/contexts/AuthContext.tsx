@@ -54,36 +54,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    dispatch({ type: "LOADING", loading: true });
-    try {
-      const data = await api.login(username, password);
-      handleAuthSuccess(data);
-    } catch (err) {
-      dispatch({ type: "LOADING", loading: false });
-      throw err;
-    }
+    const data = await api.login(username, password);
+    handleAuthSuccess(data);
   }, [handleAuthSuccess]);
 
   const register = useCallback(async (username: string, password: string, displayName?: string) => {
-    dispatch({ type: "LOADING", loading: true });
-    try {
-      const data = await api.register(username, password, displayName);
-      handleAuthSuccess(data);
-    } catch (err) {
-      dispatch({ type: "LOADING", loading: false });
-      throw err;
-    }
+    const data = await api.register(username, password, displayName);
+    handleAuthSuccess(data);
   }, [handleAuthSuccess]);
 
   const joinWithInvite = useCallback(async (token: string, username: string, displayName?: string) => {
-    dispatch({ type: "LOADING", loading: true });
-    try {
-      const data = await api.joinWithInvite(token, username, displayName);
-      handleAuthSuccess(data);
-    } catch (err) {
-      dispatch({ type: "LOADING", loading: false });
-      throw err;
-    }
+    const data = await api.joinWithInvite(token, username, displayName);
+    handleAuthSuccess(data);
   }, [handleAuthSuccess]);
 
   const logout = useCallback(() => {

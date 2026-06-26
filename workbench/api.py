@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from .auth import CurrentUser, get_current_user
 from .config import WorkbenchSettings, load_settings
 from .db import initialize_db
-from .errors import PermissionDeniedError, ValidationError, WorkbenchError
+from .errors import PermissionDeniedError, ServiceUnavailableError, ValidationError, WorkbenchError
 from .repositories import WorkbenchRepository
 from .services.assets import AssetService
 from .services.jobs import JobService
@@ -116,8 +116,12 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
                 timeout=10,
             )
             response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response is not None and exc.response.status_code in {401, 403}:
+                raise ValidationError("Liveblocks authentication failed. Check LIVEBLOCKS_SECRET_KEY.") from exc
+            raise ValidationError("Liveblocks authorization failed") from exc
         except httpx.HTTPError as exc:
-            raise ValidationError(f"Liveblocks authorization failed: {exc}") from exc
+            raise ValidationError("Liveblocks collaboration service is unreachable") from exc
         return response.json()
 
     @app.post("/api/liveblocks/resolve-users")
@@ -232,7 +236,12 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
     def comfyui_queue():
         from .comfyui_queue import ComfyUIQueueClient
         client = ComfyUIQueueClient(settings.comfyui_url)
-        return client.fetch_queue()
+        try:
+            return client.fetch_queue()
+        except httpx.HTTPError as exc:
+            raise ServiceUnavailableError("ComfyUI queue is unavailable") from exc
+        except ValueError as exc:
+            raise ServiceUnavailableError("ComfyUI queue returned an invalid response") from exc
 
     # ── Users ────────────────────────────────────────────────────────
 

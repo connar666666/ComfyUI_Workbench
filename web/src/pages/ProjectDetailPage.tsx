@@ -5,23 +5,111 @@ import {
   addProjectWorkflow,
   assetUrl,
   getProject,
+  getRemoteWorkflow,
   listProjectAssets,
   listProjectHistory,
   listProjectWorkflows,
   listRemoteWorkflows,
   refreshProjectRemoteRun,
   runProjectWorkflow,
+  uploadRemoteWorkflowFile,
   uploadProjectAsset,
 } from "../api/client";
-import type { Asset, Project, ProjectHistoryItem, ProjectRemoteRun, ProjectWorkflow, RemoteWorkflowSummary } from "../types";
+import type {
+  Asset,
+  Project,
+  ProjectHistoryItem,
+  ProjectRemoteRun,
+  ProjectWorkflow,
+  RemoteWorkflowDetail,
+  RemoteWorkflowResultItem,
+  RemoteWorkflowSummary,
+} from "../types";
 
 const KIND_LABELS: Record<string, string> = { image: "图片", audio: "音频", video: "视频", document: "文档" };
+type FieldKind = "text" | "textarea" | "number" | "boolean" | "file";
+type WorkflowField = {
+  key: string;
+  label: string;
+  kind: FieldKind;
+  defaultValue: unknown;
+  classType?: string;
+  inputName: string;
+};
 
 function guessKind(file: File): string {
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
   if (file.type.startsWith("video/")) return "video";
   return "document";
+}
+
+function guessFieldKind(key: string, label: string, defaultValue: unknown): FieldKind {
+  if (typeof defaultValue === "boolean") return "boolean";
+  if (typeof defaultValue === "number") return "number";
+  const hint = `${key} ${label}`.toLowerCase();
+  if (/(image|audio|video|mask|file|upload)/.test(hint)) return "file";
+  if (typeof defaultValue === "string" && defaultValue.length > 80) return "textarea";
+  return "text";
+}
+
+function buildFields(detail: RemoteWorkflowDetail | null, defaults: Record<string, unknown>): WorkflowField[] {
+  if (!detail) return [];
+  const enabledParams = detail.api_config.enabledParams ?? {};
+  const formValues = { ...(detail.api_config.formValues ?? {}), ...defaults };
+  const customLabels = detail.api_config.customLabels ?? {};
+
+  return Object.entries(enabledParams)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => {
+      const [nodeId, inputName] = key.split(":");
+      const node = detail.workflow_template[nodeId];
+      const templateValue = node?.inputs?.[inputName];
+      const defaultValue = formValues[key] ?? templateValue ?? "";
+      const label = customLabels[key] ?? inputName ?? key;
+      return {
+        key,
+        label,
+        kind: guessFieldKind(key, label, defaultValue),
+        defaultValue,
+        classType: node?.class_type,
+        inputName: inputName ?? key,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
+}
+
+function toInitialFormValues(fields: WorkflowField[]): Record<string, string | boolean> {
+  return Object.fromEntries(
+    fields.map((field) => [
+      field.key,
+      field.kind === "boolean" ? Boolean(field.defaultValue) : String(field.defaultValue ?? ""),
+    ])
+  );
+}
+
+function normalizeValue(field: WorkflowField, value: string | boolean): unknown {
+  if (field.kind === "boolean") return Boolean(value);
+  if (field.kind === "number") {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : value;
+  }
+  return String(value);
+}
+
+function previewForResult(item: RemoteWorkflowResultItem) {
+  const url = item.download_url ?? item.url;
+  if (!url) return null;
+  if (item.type === "image") {
+    return <img src={url} alt={item.filename || "remote result"} className="remote-preview-image" />;
+  }
+  if (item.type === "video") {
+    return <video src={url} controls className="remote-preview-video" />;
+  }
+  if (item.type === "audio") {
+    return <audio src={url} controls className="remote-preview-audio" />;
+  }
+  return null;
 }
 
 export function ProjectDetailPage() {
@@ -37,12 +125,19 @@ export function ProjectDetailPage() {
   const [runningId, setRunningId] = useState<number | null>(null);
   const [lastRun, setLastRun] = useState<ProjectRemoteRun | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedProjectWorkflowId, setSelectedProjectWorkflowId] = useState<number | null>(null);
+  const [workflowDetail, setWorkflowDetail] = useState<RemoteWorkflowDetail | null>(null);
+  const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<RemoteWorkflowSummary[]>([]);
   const [showAddWorkflow, setShowAddWorkflow] = useState(false);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [addingWorkflow, setAddingWorkflow] = useState(false);
 
   const canEdit = project?.current_user_role === "owner" || project?.current_user_role === "editor";
+  const selectedWorkflow = workflows.find((workflow) => workflow.id === selectedProjectWorkflowId) ?? workflows[0] ?? null;
+  const fields = buildFields(workflowDetail, selectedWorkflow?.defaults ?? {});
 
   const loadProjectData = useCallback(async () => {
     if (!Number.isFinite(id)) return;
@@ -66,10 +161,51 @@ export function ProjectDetailPage() {
       .finally(() => setLoading(false));
   }, [loadProjectData]);
 
+  useEffect(() => {
+    if (!workflows.length) {
+      setSelectedProjectWorkflowId(null);
+      return;
+    }
+    setSelectedProjectWorkflowId((current) => {
+      if (current && workflows.some((workflow) => workflow.id === current)) return current;
+      return workflows[0].id;
+    });
+  }, [workflows]);
+
+  useEffect(() => {
+    if (!selectedWorkflow) {
+      setWorkflowDetail(null);
+      setFormValues({});
+      return;
+    }
+    let active = true;
+    setLoadingDetail(true);
+    getRemoteWorkflow(selectedWorkflow.workflow_id)
+      .then((data) => {
+        if (!active) return;
+        const nextFields = buildFields(data, selectedWorkflow.defaults ?? {});
+        setWorkflowDetail(data);
+        setFormValues(toInitialFormValues(nextFields));
+        setError("");
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Failed to load workflow detail");
+      })
+      .finally(() => {
+        if (active) setLoadingDetail(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedWorkflow]);
+
   const handleRun = async (workflow: ProjectWorkflow) => {
     setRunningId(workflow.id);
     try {
-      const run = await runProjectWorkflow(id, workflow.id, workflow.defaults || {});
+      const payload = Object.fromEntries(
+        fields.map((field) => [field.key, normalizeValue(field, formValues[field.key] ?? "")])
+      );
+      const run = await runProjectWorkflow(id, workflow.id, payload);
       const refreshed = await refreshProjectRemoteRun(id, run.id);
       setLastRun(refreshed);
       await loadProjectData();
@@ -108,12 +244,28 @@ export function ProjectDetailPage() {
       await addProjectWorkflow(id, { workflow_id: selectedWorkflowId });
       setSelectedWorkflowId("");
       setShowAddWorkflow(false);
-      setWorkflows(await listProjectWorkflows(id));
+      const nextWorkflows = await listProjectWorkflows(id);
+      setWorkflows(nextWorkflows);
+      setSelectedProjectWorkflowId(nextWorkflows[nextWorkflows.length - 1]?.id ?? null);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add workflow");
     } finally {
       setAddingWorkflow(false);
+    }
+  };
+
+  const handleFieldUpload = async (fieldKey: string, file: File | null) => {
+    if (!file) return;
+    setUploadingField(fieldKey);
+    try {
+      const uploaded = await uploadRemoteWorkflowFile(file);
+      setFormValues((current) => ({ ...current, [fieldKey]: uploaded.name }));
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "文件上传失败");
+    } finally {
+      setUploadingField(null);
     }
   };
 
@@ -203,32 +355,144 @@ export function ProjectDetailPage() {
           {workflows.length === 0 ? (
             <div className="empty-state">这个项目还没有收藏工作流。</div>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>工作流</th>
-                  <th>Workflow ID</th>
-                  <th style={{ width: 120 }}>状态</th>
-                  <th style={{ width: 90 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {workflows.map((workflow) => (
-                  <tr key={workflow.id}>
-                    <td>{workflow.display_name || workflow.workflow_id}</td>
-                    <td className="muted">{workflow.workflow_id}</td>
-                    <td><span className="kind-tag">{workflow.enabled ? "enabled" : "disabled"}</span></td>
-                    <td>
-                      {canEdit && workflow.enabled && (
-                        <button className="btn-primary btn-sm" disabled={runningId === workflow.id} onClick={() => handleRun(workflow)}>
-                          {runningId === workflow.id ? "运行中" : "运行"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="remote-layout">
+              <section className="remote-panel remote-list-panel">
+                <div className="remote-panel-header">
+                  <h2>项目工作流</h2>
+                  <span className="page-count">{workflows.length}</span>
+                </div>
+                <div className="remote-workflow-list">
+                  {workflows.map((workflow) => (
+                    <button
+                      key={workflow.id}
+                      type="button"
+                      className={`remote-workflow-item ${workflow.id === selectedWorkflow?.id ? "active" : ""}`}
+                      onClick={() => setSelectedProjectWorkflowId(workflow.id)}
+                    >
+                      <strong>{workflow.display_name || workflow.workflow_id}</strong>
+                      <span>{workflow.workflow_id}</span>
+                      <span>{workflow.enabled ? "已启用" : "已停用"}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="remote-panel remote-form-panel">
+                <div className="remote-panel-header">
+                  <h2>参数表单</h2>
+                  {selectedWorkflow && <span className="page-count">{selectedWorkflow.workflow_id}</span>}
+                </div>
+                {!selectedWorkflow ? (
+                  <div className="empty-state">请选择一个项目工作流</div>
+                ) : loadingDetail ? (
+                  <div className="empty-state">正在加载工作流参数...</div>
+                ) : (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleRun(selectedWorkflow);
+                    }}
+                  >
+                    {fields.length === 0 ? (
+                      <div className="empty-state">当前工作流没有启用参数</div>
+                    ) : (
+                      fields.map((field) => (
+                        <div className="form-group" key={field.key}>
+                          <label htmlFor={field.key}>{field.label}</label>
+                          {field.kind === "textarea" ? (
+                            <textarea
+                              id={field.key}
+                              value={String(formValues[field.key] ?? "")}
+                              onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.value }))}
+                              rows={4}
+                            />
+                          ) : field.kind === "boolean" ? (
+                            <label className="checkbox-row">
+                              <input
+                                id={field.key}
+                                type="checkbox"
+                                checked={Boolean(formValues[field.key])}
+                                onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.checked }))}
+                              />
+                              <span>启用</span>
+                            </label>
+                          ) : (
+                            <>
+                              <input
+                                id={field.key}
+                                type={field.kind === "number" ? "number" : "text"}
+                                value={String(formValues[field.key] ?? "")}
+                                onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.value }))}
+                              />
+                              {field.kind === "file" && (
+                                <div className="remote-upload-row">
+                                  <input
+                                    type="file"
+                                    onChange={(event) => handleFieldUpload(field.key, event.target.files?.[0] ?? null)}
+                                    aria-label={`${field.label} 上传`}
+                                  />
+                                  <span className="sidebar-muted">
+                                    {uploadingField === field.key ? "上传中..." : "上传后会自动回填文件名"}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <div className="remote-field-meta">
+                            <span>{field.key}</span>
+                            {field.classType && <span>{field.classType}</span>}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={!canEdit || !selectedWorkflow.enabled || runningId === selectedWorkflow.id || fields.length === 0}
+                    >
+                      {runningId === selectedWorkflow.id ? "运行中..." : "运行工作流"}
+                    </button>
+                  </form>
+                )}
+              </section>
+
+              <section className="remote-panel remote-result-panel">
+                <div className="remote-panel-header">
+                  <h2>运行结果</h2>
+                  {lastRun && <span className={`badge ${lastRun.status === "running" ? "badge-running" : "badge-succeeded"}`}>{lastRun.status}</span>}
+                </div>
+                {!lastRun ? (
+                  <div className="empty-state">运行后这里会显示本次项目工作流结果。</div>
+                ) : (
+                  <div className="remote-result-stack">
+                    {lastRun.prompt_id && (
+                      <div className="remote-run-card">
+                        <div className="remote-run-key">Prompt ID</div>
+                        <div className="remote-run-value">{lastRun.prompt_id}</div>
+                      </div>
+                    )}
+                    {lastRun.results?.length ? (
+                      lastRun.results.map((item, index) => (
+                        <div className="remote-result-card" key={`${item.filename || item.url || index}-${index}`}>
+                          <div className="remote-result-header">
+                            <strong>{item.filename || item.type || `结果 ${index + 1}`}</strong>
+                            {item.type && <span className="badge badge-queued">{item.type}</span>}
+                          </div>
+                          {previewForResult(item)}
+                          {(item.download_url || item.url) && (
+                            <a href={item.download_url || item.url} target="_blank" rel="noreferrer" className="remote-result-link">
+                              打开输出文件
+                            </a>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state">当前运行还没有输出文件。</div>
+                    )}
+                  </div>
+                )}
+              </section>
+            </div>
           )}
         </>
       )}

@@ -62,6 +62,45 @@ describe("ProjectDetailPage", () => {
           }),
         };
       }
+      if (url.endsWith("/api/remote-workflows/wf-portrait")) {
+        return {
+          ok: true,
+          json: async () => ({
+            workflow_id: "wf-portrait",
+            workflow_template: {
+              "12": { class_type: "CLIPTextEncode", inputs: { text: "default prompt" } },
+              "20": { class_type: "LoadImage", inputs: { image: "" } },
+            },
+            api_config: {
+              enabledParams: { "12:text": true, "20:image": true },
+              formValues: {},
+              customLabels: { "12:text": "提示词", "20:image": "参考图" },
+            },
+          }),
+        };
+      }
+      if (url.endsWith("/api/remote-workflows/wf-new")) {
+        return {
+          ok: true,
+          json: async () => ({
+            workflow_id: "wf-new",
+            workflow_template: {
+              "12": { class_type: "CLIPTextEncode", inputs: { text: "hello" } },
+            },
+            api_config: {
+              enabledParams: { "12:text": true },
+              formValues: {},
+              customLabels: { "12:text": "提示词" },
+            },
+          }),
+        };
+      }
+      if (url.endsWith("/api/remote-workflows/uploads") && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({ name: "uploaded-reference.png" }),
+        };
+      }
       if (url.endsWith("/api/projects/7/assets")) {
         return {
           ok: true,
@@ -79,15 +118,23 @@ describe("ProjectDetailPage", () => {
         };
       }
       if (/\/api\/projects\/7\/workflows\/\d+\/runs$/.test(url) && init?.method === "POST") {
+        expect(String(init.body)).toContain("cinematic closeup");
+        expect(String(init.body)).toContain("uploaded-reference.png");
         return {
           ok: true,
-          json: async () => ({ id: 101, status: "running", prompt_id: "prompt-1", saved_asset_ids: [] }),
+          json: async () => ({ id: 101, status: "running", prompt_id: "prompt-1", saved_asset_ids: [], results: [] }),
         };
       }
       if (url.endsWith("/api/projects/7/remote-runs/101/refresh")) {
         return {
           ok: true,
-          json: async () => ({ id: 101, status: "succeeded", prompt_id: "prompt-1", saved_asset_ids: [11] }),
+          json: async () => ({
+            id: 101,
+            status: "succeeded",
+            prompt_id: "prompt-1",
+            saved_asset_ids: [11],
+            results: [{ type: "image", filename: "result.png", download_url: "https://zealman.example.com/result.png" }],
+          }),
         };
       }
 
@@ -107,6 +154,9 @@ describe("ProjectDetailPage", () => {
       expect(screen.getByRole("heading", { name: "Campaign" })).toBeInTheDocument();
     });
     expect(screen.getByText("Portrait")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText("提示词")).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "素材" }));
     expect(screen.getByText("shot.png")).toBeInTheDocument();
@@ -126,10 +176,24 @@ describe("ProjectDetailPage", () => {
       expect(screen.getByText("New Workflow")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "运行" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: /Portrait wf-portrait/ }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("提示词")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByLabelText("提示词"), { target: { value: "cinematic closeup" } });
+    fireEvent.change(screen.getByLabelText("参考图 上传"), {
+      target: { files: [new File(["demo"], "reference.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("uploaded-reference.png")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "运行工作流" }));
 
     await waitFor(() => {
       expect(screen.getByText("最近运行 succeeded")).toBeInTheDocument();
     });
+    expect(screen.getByText("result.png")).toBeInTheDocument();
   });
 });

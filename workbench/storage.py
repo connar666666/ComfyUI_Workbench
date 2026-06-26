@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import shutil
 import uuid
 from pathlib import Path
@@ -73,3 +74,84 @@ class LocalStorage:
         path = self.resolve(storage_key)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         return StoredFile(storage_key=storage_key, size_bytes=path.stat().st_size, sha256=digest)
+
+
+class MinioStorage:
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        access_key: str,
+        secret_key: str,
+        bucket: str,
+        secure: bool = False,
+        client: object | None = None,
+    ):
+        self.endpoint = endpoint
+        self.bucket = bucket
+        if client is None:
+            from minio import Minio
+
+            client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure)
+        self.client = client
+
+    def ensure_layout(self) -> None:
+        if not self.client.bucket_exists(self.bucket):
+            self.client.make_bucket(self.bucket)
+
+    def resolve(self, storage_key: str) -> Path:
+        raise ValueError("MinIO objects do not have stable local filesystem paths")
+
+    def store_asset(self, kind: AssetKind, filename: str, stream: BinaryIO) -> StoredFile:
+        self.ensure_layout()
+        suffix = Path(filename).suffix.lower()
+        storage_key = f"assets/{ASSET_DIRS[kind]}/{uuid.uuid4().hex}{suffix}"
+        return self._put_stream(storage_key, stream)
+
+    def archive_video(self, source_path: Path, filename: str) -> StoredFile:
+        self.ensure_layout()
+        suffix = Path(filename).suffix.lower() or ".mp4"
+        storage_key = f"outputs/videos/{uuid.uuid4().hex}{suffix}"
+        with source_path.open("rb") as stream:
+            return self._put_stream(storage_key, stream)
+
+    def open(self, storage_key: str) -> BinaryIO:
+        response = self.client.get_object(self.bucket, storage_key)
+        try:
+            return io.BytesIO(response.read())
+        finally:
+            close = getattr(response, "close", None)
+            release_conn = getattr(response, "release_conn", None)
+            if close:
+                close()
+            if release_conn:
+                release_conn()
+
+    def _put_stream(self, storage_key: str, stream: BinaryIO) -> StoredFile:
+        digest = hashlib.sha256()
+        payload = io.BytesIO()
+        size = 0
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            size += len(chunk)
+            payload.write(chunk)
+        payload.seek(0)
+        self.client.put_object(self.bucket, storage_key, payload, size)
+        return StoredFile(storage_key=storage_key, size_bytes=size, sha256=digest.hexdigest())
+
+
+def build_storage(settings):
+    if settings.storage_backend == "local":
+        return LocalStorage(settings.root_dir)
+    if settings.storage_backend == "minio":
+        return MinioStorage(
+            endpoint=settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            bucket=settings.minio_bucket,
+            secure=settings.minio_secure,
+        )
+    raise ValueError(f"unsupported storage backend: {settings.storage_backend}")

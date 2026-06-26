@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   CirclePlay,
-  Clock,
   FileText,
   Folder,
   FolderOpen,
@@ -18,10 +17,13 @@ import {
 import {
   assetUrl,
   createAssetFolder,
+  deleteAsset,
   deleteAssetFolder,
   listAssetFolders,
   listAssets,
+  listProjectAssets,
   uploadAsset,
+  uploadProjectAsset,
 } from "../api/client";
 import { useSSE } from "../hooks/useSSE";
 import type { Asset, AssetFolder, SSEEvent } from "../types";
@@ -33,22 +35,47 @@ const KIND_META: Record<string, { label: string; chip: string }> = {
   document: { label: "文档", chip: "Doc" },
 };
 
+const CURRENT_PROJECT_KEY = "workbench.currentProject";
+
+type CurrentProjectSnapshot = {
+  id: string;
+  name: string;
+};
+
+function readCurrentProject(): CurrentProjectSnapshot | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_PROJECT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CurrentProjectSnapshot>;
+    if (typeof parsed.id === "string" && parsed.id) {
+      return { id: parsed.id, name: typeof parsed.name === "string" ? parsed.name : "" };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function AssetsPage() {
+  const [currentProject] = useState<CurrentProjectSnapshot | null>(() => readCurrentProject());
   const [assets, setAssets] = useState<Asset[]>([]);
   const [folders, setFolders] = useState<AssetFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [folderFilter, setFolderFilter] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [folderFilter, setFolderFilter] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
 
   const fetchAssets = useCallback(async () => {
     try {
-      const data = await listAssets(undefined, folderFilter);
+      const data = currentProject
+        ? await listProjectAssets(currentProject.id, undefined, folderFilter)
+        : await listAssets(undefined, folderFilter);
       setAssets(data);
       setError("");
     } catch {
@@ -56,16 +83,16 @@ export function AssetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [folderFilter]);
+  }, [currentProject, folderFilter]);
 
   const fetchFolders = useCallback(async () => {
     try {
-      const data = await listAssetFolders();
+      const data = await listAssetFolders("assets", null, currentProject?.id ?? null);
       setFolders(data);
     } catch {
       setFolders([]);
     }
-  }, []);
+  }, [currentProject]);
 
   useEffect(() => {
     fetchAssets();
@@ -78,6 +105,7 @@ export function AssetsPage() {
   useSSE((event: SSEEvent) => {
     if (event.type === "asset_uploaded") {
       const newAsset = (event.data as { asset: Asset }).asset;
+      if ((currentProject?.id ?? null) !== (newAsset.project_id ?? null)) return;
       if (folderFilter == null || newAsset.folder_id === folderFilter) {
         setAssets((prev) => (prev.some((a) => a.id === newAsset.id) ? prev : [newAsset, ...prev]));
       }
@@ -93,7 +121,11 @@ export function AssetsPage() {
     else if (file.type.startsWith("video/")) kind = "video";
     setUploading(true);
     try {
-      await uploadAsset(kind, file, folderFilter);
+      if (currentProject) {
+        await uploadProjectAsset(currentProject.id, kind, file, folderFilter);
+      } else {
+        await uploadAsset(kind, file, folderFilter);
+      }
       await fetchAssets();
     } catch (err) {
       setError(err instanceof Error ? err.message : "上传失败");
@@ -113,7 +145,7 @@ export function AssetsPage() {
     setCreatingFolder(true);
     setCreateError("");
     try {
-      const created = await createAssetFolder(trimmed);
+      const created = await createAssetFolder(trimmed, "assets", null, currentProject?.id ?? null);
       setFolders((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN")));
       setFolderFilter(created.id);
       setShowCreate(false);
@@ -134,6 +166,22 @@ export function AssetsPage() {
       if (folderFilter === folder.id) setFolderFilter(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除文件夹失败");
+    }
+  };
+
+  const handleDeleteAsset = async (asset: Asset) => {
+    if (!window.confirm(`确定删除素材「${asset.original_filename}」？`)) return;
+    setDeletingAssetId(asset.id);
+    try {
+      await deleteAsset(asset.id);
+      setAssets((prev) => prev.filter((item) => item.id !== asset.id));
+      setSelectedId(null);
+      setError("");
+      await fetchFolders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除素材失败");
+    } finally {
+      setDeletingAssetId(null);
     }
   };
 
@@ -172,7 +220,7 @@ export function AssetsPage() {
   }
 
   return (
-    <div className={`assets-page${selectedAsset ? " has-inspector" : ""}`}>
+    <div className="assets-page">
       <div className="assets-toolbar">
         <div className="assets-breadcrumb">
           <button type="button" onClick={() => setFolderFilter(null)}>全部素材</button>
@@ -293,28 +341,31 @@ export function AssetsPage() {
               : "暂无素材，请上传文件。"}
           </div>
         ) : (
-          <div className="assets-grid">
-            {assets.map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
+          <>
+            {selectedAsset && (
+              <AssetPreviewPanel
+                asset={selectedAsset}
+                deleting={deletingAssetId === selectedAsset.id}
                 formatSize={formatSize}
-                selected={asset.id === selectedId}
-                onSelect={() => setSelectedId(asset.id)}
+                formatDate={formatDate}
+                onClose={() => setSelectedId(null)}
+                onDelete={() => handleDeleteAsset(selectedAsset)}
               />
-            ))}
-          </div>
+            )}
+            <div className="assets-grid">
+              {assets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  formatSize={formatSize}
+                  selected={asset.id === selectedId}
+                  onSelect={() => setSelectedId(asset.id)}
+                />
+              ))}
+            </div>
+          </>
         )}
       </section>
-
-      {selectedAsset && (
-        <AssetInspector
-          asset={selectedAsset}
-          formatSize={formatSize}
-          formatDate={formatDate}
-          onClose={() => setSelectedId(null)}
-        />
-      )}
     </div>
   );
 }
@@ -456,42 +507,52 @@ function AssetCard({ asset, formatSize, selected, onSelect }: AssetCardProps) {
   );
 }
 
-type InspectorProps = {
+type AssetPreviewPanelProps = {
   asset: Asset;
+  deleting: boolean;
   formatSize: (bytes: number) => string;
   formatDate: (iso: string) => string;
   onClose: () => void;
+  onDelete: () => void;
 };
 
-function AssetInspector({ asset, formatSize, formatDate, onClose }: InspectorProps) {
+function AssetPreviewPanel({
+  asset,
+  deleting,
+  formatSize,
+  formatDate,
+  onClose,
+  onDelete,
+}: AssetPreviewPanelProps) {
   const meta = KIND_META[asset.kind] || { label: asset.kind, chip: asset.kind };
   const isImage = asset.kind === "image";
 
   return (
-    <aside className="assets-inspector">
-      <header className="assets-inspector-header">
-        <h3>文件详情</h3>
-        <button type="button" className="assets-inspector-close" onClick={onClose} aria-label="关闭">
+    <div className="assets-preview-panel glass-card">
+      <div className="assets-preview-media">
+        {isImage ? (
+          <img src={assetUrl(asset.id)} alt={asset.original_filename} className="assets-preview-image" />
+        ) : (
+          <div className="assets-preview-fallback">
+            {asset.kind === "video" && <Video size={52} strokeWidth={1.2} />}
+            {asset.kind === "audio" && <Music size={52} strokeWidth={1.2} />}
+            {asset.kind === "document" && <FileText size={52} strokeWidth={1.2} />}
+          </div>
+        )}
+      </div>
+
+      <div className="assets-preview-detail">
+        <div className="assets-preview-header">
+          <div>
+            <span className="assets-card-chip">{meta.chip}</span>
+            <h3>{asset.original_filename}</h3>
+          </div>
+          <button type="button" className="assets-preview-close" onClick={onClose} aria-label="关闭预览">
           <X size={18} />
         </button>
-      </header>
-
-      <div className="assets-inspector-body">
-        <div className="assets-inspector-preview">
-          {isImage ? (
-            <img src={assetUrl(asset.id)} alt={asset.original_filename} className="assets-inspector-image" />
-          ) : (
-            <div className="assets-inspector-preview-fallback">
-              {asset.kind === "video" && <Video size={48} strokeWidth={1.2} />}
-              {asset.kind === "audio" && <Music size={48} strokeWidth={1.2} />}
-              {asset.kind === "document" && <FileText size={48} strokeWidth={1.2} />}
-            </div>
-          )}
         </div>
 
-        <div className="assets-inspector-block">
-          <h4 className="assets-inspector-block-title">核心元数据</h4>
-          <div className="assets-inspector-list">
+        <div className="assets-preview-meta">
             <InspectorRow label="文件名" value={asset.original_filename} mono />
             <InspectorRow label="类型" value={meta.label} />
             <InspectorRow label="大小" value={formatSize(asset.size_bytes)} mono />
@@ -510,50 +571,24 @@ function AssetInspector({ asset, formatSize, formatDate, onClose }: InspectorPro
               value={formatDate(asset.created_at)}
               mono
             />
-          </div>
         </div>
 
-        <div className="assets-inspector-block">
-          <h4 className="assets-inspector-block-title">版本历史</h4>
-          <div className="assets-inspector-versions">
-            <div className="assets-version-row is-current">
-              <div className="assets-version-badge">
-                <Sparkles size={13} />
-              </div>
-              <div className="assets-version-info">
-                <p className="assets-version-title">当前版本</p>
-                <p className="assets-version-meta">
-                  <Clock size={10} />
-                  {formatDate(asset.created_at)} · {asset.uploaded_by_username || "系统"}
-                </p>
-              </div>
-            </div>
-            <div className="assets-version-row is-dimmed">
-              <div className="assets-version-badge">V1</div>
-              <div className="assets-version-info">
-                <p className="assets-version-title">初始草案</p>
-                <p className="assets-version-meta">—</p>
-              </div>
-            </div>
-          </div>
+        <div className="assets-preview-version">
+          <Sparkles size={14} />
+          <span>当前版本 · {formatDate(asset.created_at)} · {asset.uploaded_by_username || "系统"}</span>
         </div>
-      </div>
 
-      <footer className="assets-inspector-footer">
-        <button type="button" className="btn btn-primary btn-full">
-          <Plus size={15} />
-          添加到画布
-        </button>
-        <div className="assets-inspector-footer-row">
-          <a href={assetUrl(asset.id)} download className="btn btn-secondary assets-inspector-action">
+        <div className="assets-preview-actions">
+          <a href={assetUrl(asset.id)} download className="btn btn-secondary">
             下载
           </a>
-          <button type="button" className="btn btn-danger-soft assets-inspector-action">
-            删除
+          <button type="button" className="btn btn-danger-soft" onClick={onDelete} disabled={deleting}>
+            <Trash2 size={15} />
+            {deleting ? "删除中..." : "删除"}
           </button>
         </div>
-      </footer>
-    </aside>
+      </div>
+    </div>
   );
 }
 

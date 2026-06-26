@@ -10,7 +10,7 @@ export function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -36,7 +36,7 @@ export function JobsPage() {
     }
   });
 
-  const handleCancel = async (jobId: number) => {
+  const handleCancel = async (jobId: string) => {
     try { await cancelJob(jobId); fetchJobs(); }
     catch (err) { setError(err instanceof Error ? err.message : "Cancel failed"); }
   };

@@ -25,6 +25,13 @@ class WorkbenchSettings:
     invite_token_bytes: int
     invite_expiry_days: int
     liveblocks_secret_key: str | None
+    database_url: str = "postgresql://lijiahao:123456@localhost:5432/postgres"
+    storage_backend: str = "local"
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minio"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "workbench"
+    minio_secure: bool = False
 
 
 def _dev_jwt_secret() -> str:
@@ -35,9 +42,12 @@ def _dev_jwt_secret() -> str:
 def load_settings() -> WorkbenchSettings:
     root = Path(os.environ.get("WORKBENCH_ROOT", "~/.openclaw/shared-workbench")).expanduser()
     db_path = Path(os.environ.get("WORKBENCH_DB", str(root / "workbench.sqlite")))
+    minio_endpoint = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
+    minio_endpoint = minio_endpoint.removeprefix("http://").removeprefix("https://").rstrip("/")
     return WorkbenchSettings(
         root_dir=root,
         db_path=db_path,
+        database_url=os.environ.get("DATABASE_URL", "postgresql://lijiahao:123456@localhost:5432/postgres"),
         comfyui_url=os.environ.get("COMFYUI_URL", "http://192.168.7.75:8188").rstrip("/"),
         zealman_base_url=os.environ.get("ZEALMAN_BASE_URL", "").rstrip("/") or None,
         zealman_token=os.environ.get("ZEALMAN_TOKEN") or None,
@@ -48,4 +58,10 @@ def load_settings() -> WorkbenchSettings:
         invite_token_bytes=int(os.environ.get("INVITE_TOKEN_BYTES", "32")),
         invite_expiry_days=int(os.environ.get("INVITE_EXPIRY_DAYS", "7")),
         liveblocks_secret_key=os.environ.get("LIVEBLOCKS_SECRET_KEY"),
+        storage_backend=os.environ.get("STORAGE_BACKEND", "minio").lower(),
+        minio_endpoint=minio_endpoint,
+        minio_access_key=os.environ.get("MINIO_ACCESS_KEY", "minio"),
+        minio_secret_key=os.environ.get("MINIO_SECRET_KEY", "minioadmin"),
+        minio_bucket=os.environ.get("MINIO_BUCKET", "workbench"),
+        minio_secure=os.environ.get("MINIO_SECURE", "false").lower() in {"1", "true", "yes"},
     )

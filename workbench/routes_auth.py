@@ -79,7 +79,7 @@ def _tokens_for(user: dict) -> TokenResponse:
 
 def _get_repo() -> WorkbenchRepository:
     from .config import load_settings
-    return WorkbenchRepository(load_settings().db_path)
+    return WorkbenchRepository(load_settings().database_url)
 
 
 # ── Invite-link join ───────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ def refresh(req: RefreshRequest):
         raise PermissionDeniedError("Invalid or expired refresh token")
 
     repo = _get_repo()
-    user = repo.get_user_by_id(int(payload["sub"]))
+    user = repo.get_user_by_id(str(payload["sub"]))
     repo.update_last_seen(user["id"])
     return _tokens_for(user)
 
@@ -223,7 +223,7 @@ def list_invites(user: CurrentUser = Depends(get_current_user)):
 
 
 @router.post("/invites/{invite_id}/revoke")
-def revoke_invite(invite_id: int, user: CurrentUser = Depends(get_current_user)):
+def revoke_invite(invite_id: str, user: CurrentUser = Depends(get_current_user)):
     """Revoke an invite link by ID."""
     if user.role != "admin":
         raise PermissionDeniedError("Only admins can revoke invite links")

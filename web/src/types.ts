@@ -1,14 +1,14 @@
 export type User = {
-  id: number;
+  id: string;
   username: string;
   display_name: string;
   role: "admin" | "member";
 };
 
 export type Asset = {
-  id: number;
-  project_id?: number | null;
-  folder_id?: number | null;
+  id: string;
+  project_id?: string | null;
+  folder_id?: string | null;
   kind: "image" | "audio" | "video" | "document";
   original_filename: string;
   mime_type: string;
@@ -18,12 +18,12 @@ export type Asset = {
 };
 
 export type AssetFolder = {
-  id: number;
+  id: string;
   name: string;
-  parent_id: number | null;
+  parent_id: string | null;
   scope: "assets" | "videos";
   asset_count: number;
-  created_by?: number | null;
+  created_by?: string | null;
   created_at: string;
   updated_at?: string;
 };
@@ -31,15 +31,15 @@ export type AssetFolder = {
 export type ProjectRole = "owner" | "editor" | "viewer";
 
 export type ProjectMember = {
-  project_id: number;
-  user_id: number;
+  project_id: string;
+  user_id: string;
   role: ProjectRole;
   username: string;
   display_name: string;
 };
 
 export type Project = {
-  id: number;
+  id: string;
   name: string;
   description: string;
   current_user_role?: ProjectRole;
@@ -50,8 +50,8 @@ export type Project = {
 };
 
 export type ProjectWorkflow = {
-  id: number;
-  project_id: number;
+  id: string;
+  project_id: string;
   workflow_id: string;
   display_name?: string | null;
   defaults: Record<string, unknown>;
@@ -59,17 +59,17 @@ export type ProjectWorkflow = {
 };
 
 export type ProjectRemoteRun = {
-  id: number;
-  project_id: number;
+  id: string;
+  project_id: string;
   workflow_id: string;
   prompt_id?: string | null;
   status: Job["status"];
-  saved_asset_ids: number[];
+  saved_asset_ids: string[];
   results?: RemoteWorkflowResultItem[];
 };
 
 export type ProjectHistoryItem = {
-  id: number;
+  id: string;
   type: "local_generation" | "remote_workflow";
   status: Job["status"];
   title: string;
@@ -77,13 +77,13 @@ export type ProjectHistoryItem = {
   updated_at?: string;
   completed_at?: string | null;
   created_by_username?: string;
-  result_asset_ids?: number[];
+  result_asset_ids?: string[];
   remote_results?: RemoteWorkflowResultItem[];
   error_message?: string | null;
 };
 
 export type Job = {
-  id: number;
+  id: string;
   status: "queued" | "running" | "succeeded" | "failed" | "canceled";
   prompt: string;
   duration_sec: number;
@@ -91,33 +91,33 @@ export type Job = {
   created_at: string;
   canvas_id?: string | null;
   canvas_node_id?: string | null;
-  canvas_version_id?: number | null;
-  output_video_id?: number | null;
+  canvas_version_id?: string | null;
+  output_video_id?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
   error_message?: string | null;
   error_code?: string | null;
   created_by_username?: string;
-  created_by?: number;
+  created_by?: string;
 };
 
 export type NodeVersion = {
-  id: number;
+  id: string;
   canvas_id: string;
   node_id: string;
-  generation_job_id: number;
-  output_video_id?: number | null;
+  generation_job_id: string | null;
+  output_video_id?: string | null;
   version_number: number;
   prompt: string;
   status: Job["status"];
-  created_by: number;
+  created_by: string;
   created_at: string;
 };
 
 export type Video = {
-  id: number;
-  source_job_id: number;
-  created_by: number;
+  id: string;
+  source_job_id: string | null;
+  created_by: string;
   created_by_username?: string;
   title: string;
   storage_key: string;

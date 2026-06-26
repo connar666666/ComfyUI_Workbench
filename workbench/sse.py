@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from typing import Any
+from uuid import UUID
 
 from fastapi import Depends, Request
 from sse_starlette.sse import EventSourceResponse
@@ -39,7 +41,7 @@ class EventBus:
         """
         payload = {
             "type": event_type.value,
-            "data": data,
+            "data": _json_safe(data),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         # Copy the list to avoid mutation during iteration
@@ -72,6 +74,18 @@ def get_event_bus() -> EventBus:
     return _event_bus
 
 
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (UUID, Decimal)):
+        return str(value)
+    return value
+
+
 async def _sse_auth(request: Request) -> CurrentUser:
     """Extract JWT from query param (EventSource can't set headers) or Authorization header."""
     # Try query param first
@@ -95,7 +109,7 @@ async def _sse_auth(request: Request) -> CurrentUser:
         raise PermissionDeniedError("Invalid or expired token")
 
     return CurrentUser(
-        id=int(payload["sub"]),
+        id=str(payload["sub"]),
         username=payload["username"],
         role=payload["role"],
     )

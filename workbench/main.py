@@ -14,11 +14,11 @@ def _make_worker():
     """Build a WorkbenchWorker from current settings."""
     settings = load_settings()
     from .repositories import WorkbenchRepository
-    from .storage import LocalStorage
+    from .storage import build_storage
     from .comfyui_adapter import WorkbenchComfyUIAdapter
 
-    repo = WorkbenchRepository(settings.db_path)
-    storage = LocalStorage(settings.root_dir)
+    repo = WorkbenchRepository(settings.database_url)
+    storage = build_storage(settings)
     adapter = WorkbenchComfyUIAdapter(comfyui_url=settings.comfyui_url)
 
     from .worker import WorkbenchWorker

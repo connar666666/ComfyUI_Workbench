@@ -5,7 +5,6 @@ import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import jwt as pyjwt
 from fastapi import Header
@@ -16,7 +15,7 @@ from .models import UserRole
 
 @dataclass(frozen=True)
 class CurrentUser:
-    id: int
+    id: str
     username: str
     role: UserRole
 
@@ -52,7 +51,7 @@ _JWT_SECRET = _settings.jwt_secret
 _JWT_ALG = "HS256"
 
 
-def create_access_token(user_id: int, username: str, role: str) -> str:
+def create_access_token(user_id: str, username: str, role: str) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -64,7 +63,7 @@ def create_access_token(user_id: int, username: str, role: str) -> str:
     return pyjwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALG)
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: str) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -112,7 +111,7 @@ def get_current_user(authorization: str = Header(default="")) -> CurrentUser:
         raise PermissionDeniedError("Invalid or expired token")
 
     return CurrentUser(
-        id=int(payload["sub"]),
+        id=str(payload["sub"]),
         username=payload["username"],
         role=payload["role"],  # type: ignore[arg-type]
     )
@@ -132,6 +131,6 @@ def current_user_from_headers(
     x_workbench_role: str | None = Header(default=None),
 ) -> CurrentUser:
     username = x_workbench_user or "local-user"
-    user_id = int(x_workbench_user_id or "1")
+    user_id = x_workbench_user_id or "00000000-0000-0000-0000-000000000000"
     role = x_workbench_role if x_workbench_role in ("member", "admin") else "admin"
     return CurrentUser(id=user_id, username=username, role=role)  # type: ignore[arg-type]

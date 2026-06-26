@@ -12,11 +12,11 @@ export type WorkbenchStatus =
 
 export type WorkbenchNodeData = {
   title: string;
-  createdBy?: number;
-  updatedBy?: number;
+  createdBy?: string;
+  updatedBy?: string;
   status?: WorkbenchStatus;
-  currentJobId?: number;
-  currentVersionId?: number;
+  currentJobId?: string;
+  currentVersionId?: string;
   thumbnailUrl?: string;
   errorMessage?: string;
 };
@@ -27,7 +27,7 @@ export type PromptNodeData = WorkbenchNodeData & {
 };
 
 export type AssetNodeData = WorkbenchNodeData & {
-  assetId: number;
+  assetId: string;
   assetKind: "image" | "audio" | "video" | "document";
   fileName?: string;
   mimeType?: string;
@@ -39,8 +39,8 @@ export type VideoGenerationNodeData = WorkbenchNodeData & {
   duration_sec: number;
   resolution: "720x1280" | "1280x720" | "1024x1024";
   audio_start_sec: number;
-  reference_image_asset_id?: number | null;
-  reference_audio_asset_id?: number | null;
+  reference_image_asset_id?: string | null;
+  reference_audio_asset_id?: string | null;
 };
 
 export type PromptNode = Node<PromptNodeData, "prompt">;
@@ -56,8 +56,8 @@ export type WorkbenchEdge = Edge<{
 export type ResolvedGenerationInputs = {
   prompt?: string;
   negativePrompt?: string;
-  reference_image_asset_id?: number | null;
-  reference_audio_asset_id?: number | null;
+  reference_image_asset_id?: string | null;
+  reference_audio_asset_id?: string | null;
 };
 
 export type CanvasJobPayload = {
@@ -65,8 +65,8 @@ export type CanvasJobPayload = {
   duration_sec: number;
   resolution: "720x1280" | "1280x720" | "1024x1024";
   audio_start_sec: number;
-  reference_image_asset_id?: number | null;
-  reference_audio_asset_id?: number | null;
+  reference_image_asset_id?: string | null;
+  reference_audio_asset_id?: string | null;
   canvas_id: string;
   canvas_node_id: string;
 };

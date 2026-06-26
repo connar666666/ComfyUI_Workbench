@@ -10,9 +10,10 @@ describe("ProjectDetailPage", () => {
   });
 
   it("renders project workflows, assets, history, and can run a workflow", async () => {
+    const projectId = "0765e635-f4c0-4176-a292-1bed4837c0ab";
     const projectWorkflows = [
       {
-        id: 3,
+        id: "3fef1f40-5beb-4985-a6c8-12683b99d947",
         workflow_id: "wf-portrait",
         display_name: "Portrait",
         defaults: { "12:prompt": "hello" },
@@ -23,11 +24,11 @@ describe("ProjectDetailPage", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-      if (url.endsWith("/api/projects/7")) {
+      if (url.endsWith(`/api/projects/${projectId}`)) {
         return {
           ok: true,
           json: async () => ({
-            id: 7,
+            id: projectId,
             name: "Campaign",
             description: "Launch work",
             current_user_role: "editor",
@@ -35,10 +36,10 @@ describe("ProjectDetailPage", () => {
           }),
         };
       }
-      if (url.endsWith("/api/projects/7/workflows")) {
+      if (url.endsWith(`/api/projects/${projectId}/workflows`)) {
         if (init?.method === "POST") {
           projectWorkflows.push({
-            id: 5,
+            id: "6734155e-9e92-4105-952d-1e0152338564",
             workflow_id: "wf-new",
             display_name: "New Workflow",
             defaults: {},
@@ -101,38 +102,38 @@ describe("ProjectDetailPage", () => {
           json: async () => ({ name: "uploaded-reference.png" }),
         };
       }
-      if (url.endsWith("/api/projects/7/assets")) {
+      if (url.endsWith(`/api/projects/${projectId}/assets`)) {
         return {
           ok: true,
           json: async () => [
-            { id: 11, kind: "image", original_filename: "shot.png", size_bytes: 4, mime_type: "image/png", created_at: "2026-06-26T10:00:00Z" },
+            { id: "3c248111-5a73-4b61-97fb-a3e8301f4689", kind: "image", original_filename: "shot.png", size_bytes: 4, mime_type: "image/png", created_at: "2026-06-26T10:00:00Z" },
           ],
         };
       }
-      if (url.endsWith("/api/projects/7/history")) {
+      if (url.endsWith(`/api/projects/${projectId}/history`)) {
         return {
           ok: true,
           json: async () => [
-            { id: 99, type: "remote_workflow", status: "succeeded", title: "Portrait", created_at: "2026-06-26T10:00:00Z", result_asset_ids: [11] },
+            { id: "7ca964ed-1d2b-421b-a9c1-2626b6d2b358", type: "remote_workflow", status: "succeeded", title: "Portrait", created_at: "2026-06-26T10:00:00Z", result_asset_ids: ["3c248111-5a73-4b61-97fb-a3e8301f4689"] },
           ],
         };
       }
-      if (/\/api\/projects\/7\/workflows\/\d+\/runs$/.test(url) && init?.method === "POST") {
+      if (url.endsWith(`/api/projects/${projectId}/workflows/3fef1f40-5beb-4985-a6c8-12683b99d947/runs`) && init?.method === "POST") {
         expect(String(init.body)).toContain("cinematic closeup");
         expect(String(init.body)).toContain("uploaded-reference.png");
         return {
           ok: true,
-          json: async () => ({ id: 101, status: "running", prompt_id: "prompt-1", saved_asset_ids: [], results: [] }),
+          json: async () => ({ id: "4d6566c3-632e-4b83-885f-f588c7e451ad", status: "running", prompt_id: "prompt-1", saved_asset_ids: [], results: [] }),
         };
       }
-      if (url.endsWith("/api/projects/7/remote-runs/101/refresh")) {
+      if (url.endsWith(`/api/projects/${projectId}/remote-runs/4d6566c3-632e-4b83-885f-f588c7e451ad/refresh`)) {
         return {
           ok: true,
           json: async () => ({
-            id: 101,
+            id: "4d6566c3-632e-4b83-885f-f588c7e451ad",
             status: "succeeded",
             prompt_id: "prompt-1",
-            saved_asset_ids: [11],
+            saved_asset_ids: ["3c248111-5a73-4b61-97fb-a3e8301f4689"],
             results: [{ type: "image", filename: "result.png", download_url: "https://zealman.example.com/result.png" }],
           }),
         };
@@ -143,7 +144,7 @@ describe("ProjectDetailPage", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(
-      <MemoryRouter initialEntries={["/projects/7"]}>
+      <MemoryRouter initialEntries={[`/projects/${projectId}`]}>
         <Routes>
           <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         </Routes>

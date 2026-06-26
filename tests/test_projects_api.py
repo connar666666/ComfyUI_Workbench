@@ -58,7 +58,7 @@ class ProjectApiTests(unittest.TestCase):
         self.assertEqual(project["name"], "Campaign")
         self.assertEqual(project["current_user_role"], "owner")
         self.assertEqual(project["members"][0]["role"], "owner")
-        self.assertEqual(project["members"][0]["user_id"], 1)
+        self.assertIsInstance(project["members"][0]["user_id"], str)
 
     def test_viewer_can_read_but_cannot_upload_project_assets(self):
         project = self.create_project()
@@ -97,6 +97,27 @@ class ProjectApiTests(unittest.TestCase):
         self.assertEqual(len(assets_a.json()), 1)
         self.assertEqual(assets_a.json()[0]["project_id"], project_a["id"])
         self.assertEqual(assets_b.json(), [])
+
+    def test_project_folders_are_private_to_project(self):
+        project_a = self.create_project("Project A")
+        project_b = self.create_project("Project B")
+
+        folder_a = self.client.post(
+            "/api/folders",
+            json={"scope": "assets", "name": "References", "project_id": project_a["id"]},
+        )
+        self.assertEqual(folder_a.status_code, 200, folder_a.text)
+        folder_b = self.client.post(
+            "/api/folders",
+            json={"scope": "assets", "name": "References", "project_id": project_b["id"]},
+        )
+        self.assertEqual(folder_b.status_code, 200, folder_b.text)
+
+        folders_a = self.client.get(f"/api/folders?project_id={project_a['id']}")
+        folders_b = self.client.get(f"/api/folders?project_id={project_b['id']}")
+
+        self.assertEqual([folder["id"] for folder in folders_a.json()], [folder_a.json()["id"]])
+        self.assertEqual([folder["id"] for folder in folders_b.json()], [folder_b.json()["id"]])
 
     def test_project_workflow_run_refreshes_result_and_appears_in_history(self):
         project = self.create_project()

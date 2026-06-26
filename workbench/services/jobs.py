@@ -32,9 +32,10 @@ class JobService:
             raise ValidationError("duration_sec must be between 1 and 60")
         if resolution not in ("720x1280", "1280x720", "1024x1024"):
             raise ValidationError("unsupported resolution")
+        actor_id = self.repo.resolve_user_id(user.id, user.username)
         return self.repo.create_job(
             project_id=project_id,
-            created_by=user.id,
+            created_by=actor_id,
             prompt=prompt,
             duration_sec=duration_sec,
             resolution=resolution,

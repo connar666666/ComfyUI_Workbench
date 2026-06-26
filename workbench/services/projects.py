@@ -21,12 +21,13 @@ class ProjectService:
         name = name.strip()
         if not name:
             raise ValidationError("project name is required")
-        project = self.repo.create_project(name=name, description=description.strip(), created_by=user.id)
+        actor_id = self.repo.resolve_user_id(user.id, user.username)
+        project = self.repo.create_project(name=name, description=description.strip(), created_by=actor_id)
         for member in members or []:
-            user_id = int(member["user_id"])
+            user_id = str(member["user_id"])
             role = str(member["role"])
             self._validate_role(role)
-            if user_id != user.id:
+            if user_id != actor_id:
                 self.repo.set_project_member(project_id=project["id"], user_id=user_id, role=role)
         return self.get_project(user=user, project_id=project["id"])
 

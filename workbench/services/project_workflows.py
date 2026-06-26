@@ -53,7 +53,7 @@ class ProjectWorkflowService:
             workflow_id=workflow_id,
             display_name=display_name.strip() if display_name else None,
             defaults=defaults or {},
-            created_by=user.id,
+            created_by=self.repo.resolve_user_id(user.id, user.username),
         )
 
     def run_workflow(
@@ -71,12 +71,13 @@ class ProjectWorkflowService:
         if not workflow["enabled"]:
             raise ValidationError("workflow is disabled")
 
+        actor_id = self.repo.resolve_user_id(user.id, user.username)
         run = self.repo.create_remote_workflow_run(
             project_id=project_id,
             project_workflow_id=project_workflow_id,
             workflow_id=workflow["workflow_id"],
             input_values=input_values,
-            created_by=user.id,
+            created_by=actor_id,
         )
         try:
             remote_run = self.remote_client.run_workflow(workflow["workflow_id"], input_values)
@@ -105,7 +106,7 @@ class ProjectWorkflowService:
             saved_asset_ids = self._save_results(
                 project_id=project_id,
                 results=results,
-                created_by=user.id,
+                created_by=self.repo.resolve_user_id(user.id, user.username),
                 existing_asset_ids=saved_asset_ids,
             )
         return self.repo.update_remote_workflow_run_result(
@@ -139,6 +140,8 @@ class ProjectWorkflowService:
                 stored = self.storage.store_asset(kind, filename, BytesIO(content))
             except Exception:
                 continue
+            bucket = getattr(self.storage, "bucket", None)
+            endpoint = getattr(self.storage, "endpoint", None)
             asset = self.repo.create_asset(
                 project_id=project_id,
                 kind=kind,
@@ -149,6 +152,8 @@ class ProjectWorkflowService:
                 sha256=stored.sha256,
                 uploaded_by=created_by,
                 folder_id=None,
+                endpoint=endpoint,
+                bucket=bucket,
             )
             saved_asset_ids.append(asset["id"])
         return saved_asset_ids

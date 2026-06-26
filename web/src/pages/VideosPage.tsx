@@ -6,7 +6,7 @@ export function VideosPage() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [playingId, setPlayingId] = useState<number | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
 
   useEffect(() => {
     listVideos().then(setVideos).catch(() => setError("Failed to load videos")).finally(() => setLoading(false));

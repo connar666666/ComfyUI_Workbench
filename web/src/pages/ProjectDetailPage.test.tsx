@@ -10,6 +10,16 @@ describe("ProjectDetailPage", () => {
   });
 
   it("renders project workflows, assets, history, and can run a workflow", async () => {
+    const projectWorkflows = [
+      {
+        id: 3,
+        workflow_id: "wf-portrait",
+        display_name: "Portrait",
+        defaults: { "12:prompt": "hello" },
+        enabled: true,
+      },
+    ] as Array<Record<string, unknown>>;
+
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
@@ -26,17 +36,30 @@ describe("ProjectDetailPage", () => {
         };
       }
       if (url.endsWith("/api/projects/7/workflows")) {
+        if (init?.method === "POST") {
+          projectWorkflows.push({
+            id: 5,
+            workflow_id: "wf-new",
+            display_name: "New Workflow",
+            defaults: {},
+            enabled: true,
+          });
+          return {
+            ok: true,
+            json: async () => projectWorkflows[projectWorkflows.length - 1],
+          };
+        }
         return {
           ok: true,
-          json: async () => [
-            {
-              id: 3,
-              workflow_id: "wf-portrait",
-              display_name: "Portrait",
-              defaults: { "12:prompt": "hello" },
-              enabled: true,
-            },
-          ],
+          json: async () => projectWorkflows,
+        };
+      }
+      if (url.endsWith("/api/remote-workflows")) {
+        return {
+          ok: true,
+          json: async () => ({
+            workflows: [{ id: "wf-new", name: "New Workflow" }],
+          }),
         };
       }
       if (url.endsWith("/api/projects/7/assets")) {
@@ -55,7 +78,7 @@ describe("ProjectDetailPage", () => {
           ],
         };
       }
-      if (url.endsWith("/api/projects/7/workflows/3/runs") && init?.method === "POST") {
+      if (/\/api\/projects\/7\/workflows\/\d+\/runs$/.test(url) && init?.method === "POST") {
         return {
           ok: true,
           json: async () => ({ id: 101, status: "running", prompt_id: "prompt-1", saved_asset_ids: [] }),
@@ -92,8 +115,18 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByText("remote_workflow")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "工作流" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加工作流" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("选择远程工作流")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByLabelText("选择远程工作流"), { target: { value: "wf-new" } });
+    fireEvent.click(screen.getByRole("button", { name: "加入项目" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "运行" }));
+    await waitFor(() => {
+      expect(screen.getByText("New Workflow")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "运行" })[1]);
 
     await waitFor(() => {
       expect(screen.getByText("最近运行 succeeded")).toBeInTheDocument();

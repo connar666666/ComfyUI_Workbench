@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import {
+  addProjectWorkflow,
   assetUrl,
   getProject,
   listProjectAssets,
   listProjectHistory,
   listProjectWorkflows,
+  listRemoteWorkflows,
   refreshProjectRemoteRun,
   runProjectWorkflow,
   uploadProjectAsset,
 } from "../api/client";
-import type { Asset, Project, ProjectHistoryItem, ProjectRemoteRun, ProjectWorkflow } from "../types";
+import type { Asset, Project, ProjectHistoryItem, ProjectRemoteRun, ProjectWorkflow, RemoteWorkflowSummary } from "../types";
 
 const KIND_LABELS: Record<string, string> = { image: "图片", audio: "音频", video: "视频", document: "文档" };
 
@@ -35,6 +37,10 @@ export function ProjectDetailPage() {
   const [runningId, setRunningId] = useState<number | null>(null);
   const [lastRun, setLastRun] = useState<ProjectRemoteRun | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [catalog, setCatalog] = useState<RemoteWorkflowSummary[]>([]);
+  const [showAddWorkflow, setShowAddWorkflow] = useState(false);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [addingWorkflow, setAddingWorkflow] = useState(false);
 
   const canEdit = project?.current_user_role === "owner" || project?.current_user_role === "editor";
 
@@ -91,6 +97,40 @@ export function ProjectDetailPage() {
     }
   };
 
+  const handleAddWorkflow = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedWorkflowId) {
+      setError("请选择一个远程工作流");
+      return;
+    }
+    setAddingWorkflow(true);
+    try {
+      await addProjectWorkflow(id, { workflow_id: selectedWorkflowId });
+      setSelectedWorkflowId("");
+      setShowAddWorkflow(false);
+      setWorkflows(await listProjectWorkflows(id));
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add workflow");
+    } finally {
+      setAddingWorkflow(false);
+    }
+  };
+
+  const openAddWorkflow = async () => {
+    try {
+      const remoteWorkflows = await listRemoteWorkflows();
+      const existingIds = new Set(workflows.map((workflow) => workflow.workflow_id));
+      const available = remoteWorkflows.filter((workflow) => !existingIds.has(workflow.id));
+      setCatalog(available);
+      setSelectedWorkflowId(available[0]?.id ?? "");
+      setShowAddWorkflow(true);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load remote workflow catalog");
+    }
+  };
+
   if (loading) {
     return (
       <div className="page">
@@ -129,36 +169,68 @@ export function ProjectDetailPage() {
       </div>
 
       {activeTab === "workflows" && (
-        workflows.length === 0 ? (
-          <div className="empty-state">这个项目还没有收藏工作流。</div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>工作流</th>
-                <th>Workflow ID</th>
-                <th style={{ width: 120 }}>状态</th>
-                <th style={{ width: 90 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {workflows.map((workflow) => (
-                <tr key={workflow.id}>
-                  <td>{workflow.display_name || workflow.workflow_id}</td>
-                  <td className="muted">{workflow.workflow_id}</td>
-                  <td><span className="kind-tag">{workflow.enabled ? "enabled" : "disabled"}</span></td>
-                  <td>
-                    {canEdit && workflow.enabled && (
-                      <button className="btn-primary btn-sm" disabled={runningId === workflow.id} onClick={() => handleRun(workflow)}>
-                        {runningId === workflow.id ? "运行中" : "运行"}
-                      </button>
-                    )}
-                  </td>
+        <>
+          {canEdit && (
+            <div className="page-toolbar" style={{ marginBottom: 16 }}>
+              <button className="btn-secondary" type="button" onClick={() => openAddWorkflow()}>
+                添加工作流
+              </button>
+            </div>
+          )}
+          {showAddWorkflow && (
+            <form className="auth-card" style={{ marginBottom: 16, maxWidth: 560 }} onSubmit={handleAddWorkflow}>
+              <label>
+                选择远程工作流
+                <select value={selectedWorkflowId} onChange={(event) => setSelectedWorkflowId(event.target.value)}>
+                  <option value="">请选择</option>
+                  {catalog.map((workflow) => (
+                    <option key={workflow.id} value={workflow.id}>
+                      {workflow.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="page-toolbar">
+                <button className="btn-primary" type="submit" disabled={addingWorkflow || !selectedWorkflowId}>
+                  {addingWorkflow ? "加入中..." : "加入项目"}
+                </button>
+                <button className="btn-secondary" type="button" onClick={() => setShowAddWorkflow(false)}>
+                  取消
+                </button>
+              </div>
+            </form>
+          )}
+          {workflows.length === 0 ? (
+            <div className="empty-state">这个项目还没有收藏工作流。</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>工作流</th>
+                  <th>Workflow ID</th>
+                  <th style={{ width: 120 }}>状态</th>
+                  <th style={{ width: 90 }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )
+              </thead>
+              <tbody>
+                {workflows.map((workflow) => (
+                  <tr key={workflow.id}>
+                    <td>{workflow.display_name || workflow.workflow_id}</td>
+                    <td className="muted">{workflow.workflow_id}</td>
+                    <td><span className="kind-tag">{workflow.enabled ? "enabled" : "disabled"}</span></td>
+                    <td>
+                      {canEdit && workflow.enabled && (
+                        <button className="btn-primary btn-sm" disabled={runningId === workflow.id} onClick={() => handleRun(workflow)}>
+                          {runningId === workflow.id ? "运行中" : "运行"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
 
       {activeTab === "assets" && (

@@ -278,6 +278,19 @@ export async function listProjectWorkflows(projectId: number): Promise<ProjectWo
   return res.json();
 }
 
+export async function addProjectWorkflow(
+  projectId: number,
+  payload: { workflow_id: string; display_name?: string | null; defaults?: Record<string, unknown> }
+): Promise<ProjectWorkflow> {
+  const res = await fetch(`/api/projects/${projectId}/workflows`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to add workflow to project");
+  return res.json();
+}
+
 export async function runProjectWorkflow(
   projectId: number,
   projectWorkflowId: number,

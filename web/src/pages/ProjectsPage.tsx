@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createProject, listProjects } from "../api/client";
 import type { Project } from "../types";
 
 export function ProjectsPage() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -110,18 +111,32 @@ export function ProjectsPage() {
               <th style={{ width: 110 }}>角色</th>
               <th style={{ width: 120 }}>成员</th>
               <th style={{ width: 150 }}>更新</th>
+              <th style={{ width: 96 }}></th>
             </tr>
           </thead>
           <tbody>
             {projects.map((project) => (
-              <tr key={project.id}>
+              <tr key={project.id} onClick={() => navigate(`/projects/${project.id}`)} style={{ cursor: "pointer" }}>
                 <td>
-                  <Link to={`/projects/${project.id}`} className="filename-cell">{project.name}</Link>
+                  <Link to={`/projects/${project.id}`} className="filename-cell" onClick={(event) => event.stopPropagation()}>{project.name}</Link>
                   <div className="muted">{project.description || "无描述"}</div>
                 </td>
                 <td><span className="kind-tag">{project.current_user_role || "owner"}</span></td>
                 <td className="muted">{project.member_count ?? project.members?.length ?? 0} members</td>
                 <td className="muted">{project.updated_at ? new Date(project.updated_at).toLocaleString("zh-CN") : "-"}</td>
+                <td style={{ width: 96 }}>
+                  <button
+                    className="btn-secondary btn-sm"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      navigate(`/projects/${project.id}`);
+                    }}
+                    aria-label={`打开项目 ${project.name}`}
+                  >
+                    打开
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

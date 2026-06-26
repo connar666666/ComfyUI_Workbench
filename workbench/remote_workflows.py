@@ -93,6 +93,15 @@ class RemoteWorkflowClient:
             raise ValidationError("Remote upload did not return a file name")
         return payload
 
+    def download_file(self, url: str) -> tuple[bytes, str]:
+        headers = self._auth_headers()
+        try:
+            response = self.client.get(url, headers=headers)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise ServiceUnavailableError("Remote workflow result download failed") from exc
+        return response.content, response.headers.get("content-type", "application/octet-stream")
+
     def _request_json(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         headers = kwargs.pop("headers", {})
         headers.update(self._auth_headers())

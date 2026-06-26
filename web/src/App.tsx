@@ -1,5 +1,5 @@
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { Cloud, Images, ListVideo, LogOut, PlusCircle, Server, UserPlus, Video, Workflow } from "lucide-react";
+import { Briefcase, Cloud, Images, ListVideo, LogOut, PlusCircle, Server, UserPlus, Video, Workflow } from "lucide-react";
 import { AssetsPage } from "./pages/AssetsPage";
 import { NewJobPage } from "./pages/NewJobPage";
 import { JobsPage } from "./pages/JobsPage";
@@ -10,6 +10,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { JoinPage } from "./pages/JoinPage";
 import { InvitePage } from "./pages/InvitePage";
 import { RemoteWorkflowsPage } from "./pages/RemoteWorkflowsPage";
+import { ProjectsPage } from "./pages/ProjectsPage";
+import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 function AppShell() {
@@ -33,6 +35,7 @@ function AppShell() {
 
         {isAuthenticated ? (
           <>
+            <NavLink to="/projects"><Briefcase size={18} />项目</NavLink>
             <NavLink to="/assets"><Images size={18} />素材库</NavLink>
             <NavLink to="/canvas"><Workflow size={18} />创作画布</NavLink>
             <NavLink to="/jobs/new"><PlusCircle size={18} />创建任务</NavLink>
@@ -66,11 +69,13 @@ function AppShell() {
       <main className="main">
         <Routes>
           {/* Public */}
-          <Route path="/login" element={isAuthenticated ? <Navigate to="/jobs" /> : <LoginPage />} />
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/projects" /> : <LoginPage />} />
           <Route path="/join" element={<JoinPage />} />
 
           {/* Protected */}
-          <Route path="/" element={isAuthenticated ? <AssetsPage /> : <Navigate to="/login" />} />
+          <Route path="/" element={isAuthenticated ? <Navigate to="/projects" /> : <Navigate to="/login" />} />
+          <Route path="/projects" element={isAuthenticated ? <ProjectsPage /> : <Navigate to="/login" />} />
+          <Route path="/projects/:projectId" element={isAuthenticated ? <ProjectDetailPage /> : <Navigate to="/login" />} />
           <Route path="/assets" element={isAuthenticated ? <AssetsPage /> : <Navigate to="/login" />} />
           <Route path="/canvas" element={isAuthenticated ? <CanvasPage /> : <Navigate to="/login" />} />
           <Route path="/jobs/new" element={isAuthenticated ? <NewJobPage /> : <Navigate to="/login" />} />

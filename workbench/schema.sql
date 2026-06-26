@@ -42,8 +42,42 @@ create table if not exists tags (
   created_at text not null
 );
 
+create table if not exists projects (
+  id integer primary key autoincrement,
+  name text not null,
+  description text not null default '',
+  created_by integer not null references users(id),
+  archived_at text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create table if not exists project_members (
+  project_id integer not null references projects(id) on delete cascade,
+  user_id integer not null references users(id) on delete cascade,
+  role text not null check (role in ('owner', 'editor', 'viewer')),
+  created_at text not null,
+  updated_at text not null,
+  primary key(project_id, user_id)
+);
+
+create table if not exists project_workflows (
+  id integer primary key autoincrement,
+  project_id integer not null references projects(id) on delete cascade,
+  workflow_id text not null,
+  display_name text,
+  sort_order integer not null default 0,
+  defaults_json text not null default '{}',
+  enabled integer not null default 1,
+  created_by integer references users(id),
+  created_at text not null,
+  updated_at text not null,
+  unique(project_id, workflow_id)
+);
+
 create table if not exists assets (
   id integer primary key autoincrement,
+  project_id integer references projects(id),
   folder_id integer references folders(id),
   kind text not null check (kind in ('image', 'audio', 'video', 'document')),
   original_filename text not null,
@@ -67,6 +101,7 @@ create table if not exists asset_tags (
 
 create table if not exists generation_jobs (
   id integer primary key autoincrement,
+  project_id integer references projects(id),
   created_by integer references users(id),
   status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'canceled')),
   prompt text not null,
@@ -86,6 +121,23 @@ create table if not exists generation_jobs (
   started_at text,
   completed_at text,
   updated_at text not null
+);
+
+create table if not exists remote_workflow_runs (
+  id integer primary key autoincrement,
+  project_id integer not null references projects(id),
+  project_workflow_id integer references project_workflows(id),
+  workflow_id text not null,
+  prompt_id text unique,
+  status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'canceled')),
+  input_values_json text not null default '{}',
+  results_json text not null default '[]',
+  saved_asset_ids_json text not null default '[]',
+  error_message text,
+  created_by integer references users(id),
+  created_at text not null,
+  updated_at text not null,
+  completed_at text
 );
 
 create table if not exists job_inputs (

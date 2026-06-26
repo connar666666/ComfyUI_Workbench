@@ -7,12 +7,67 @@ export type User = {
 
 export type Asset = {
   id: number;
+  project_id?: number | null;
   kind: "image" | "audio" | "video" | "document";
   original_filename: string;
   mime_type: string;
   size_bytes: number;
   created_at: string;
   uploaded_by_username?: string;
+};
+
+export type ProjectRole = "owner" | "editor" | "viewer";
+
+export type ProjectMember = {
+  project_id: number;
+  user_id: number;
+  role: ProjectRole;
+  username: string;
+  display_name: string;
+};
+
+export type Project = {
+  id: number;
+  name: string;
+  description: string;
+  current_user_role?: ProjectRole;
+  member_count?: number;
+  members?: ProjectMember[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ProjectWorkflow = {
+  id: number;
+  project_id: number;
+  workflow_id: string;
+  display_name?: string | null;
+  defaults: Record<string, unknown>;
+  enabled: boolean;
+};
+
+export type ProjectRemoteRun = {
+  id: number;
+  project_id: number;
+  workflow_id: string;
+  prompt_id?: string | null;
+  status: Job["status"];
+  saved_asset_ids: number[];
+  results?: RemoteWorkflowResultItem[];
+};
+
+export type ProjectHistoryItem = {
+  id: number;
+  type: "local_generation" | "remote_workflow";
+  status: Job["status"];
+  title: string;
+  created_at: string;
+  updated_at?: string;
+  completed_at?: string | null;
+  created_by_username?: string;
+  result_asset_ids?: number[];
+  remote_results?: RemoteWorkflowResultItem[];
+  error_message?: string | null;
 };
 
 export type Job = {

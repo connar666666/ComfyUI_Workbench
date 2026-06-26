@@ -23,6 +23,7 @@ class JobService:
         canvas_id: str | None = None,
         canvas_node_id: str | None = None,
         canvas_version_id: int | None = None,
+        project_id: int | None = None,
     ) -> dict:
         prompt = prompt.strip()
         if not prompt:
@@ -32,6 +33,7 @@ class JobService:
         if resolution not in ("720x1280", "1280x720", "1024x1024"):
             raise ValidationError("unsupported resolution")
         return self.repo.create_job(
+            project_id=project_id,
             created_by=user.id,
             prompt=prompt,
             duration_sec=duration_sec,
@@ -45,5 +47,10 @@ class JobService:
             canvas_version_id=canvas_version_id,
         )
 
-    def list_jobs(self, user_id: int | None = None, role: str | None = None) -> list[dict]:
-        return self.repo.list_jobs(user_id=user_id, role=role)
+    def list_jobs(
+        self,
+        user_id: int | None = None,
+        role: str | None = None,
+        project_id: int | None = None,
+    ) -> list[dict]:
+        return self.repo.list_jobs(user_id=user_id, role=role, project_id=project_id)

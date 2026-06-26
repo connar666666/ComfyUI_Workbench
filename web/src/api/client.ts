@@ -2,6 +2,10 @@ import type {
   Asset,
   Job,
   NodeVersion,
+  Project,
+  ProjectHistoryItem,
+  ProjectRemoteRun,
+  ProjectWorkflow,
   QueueStatus,
   RemoteWorkflowDetail,
   RemoteWorkflowResult,
@@ -215,6 +219,105 @@ export async function uploadAsset(
 
 export function assetUrl(assetId: number): string {
   return `/files/assets/${assetId}`;
+}
+
+// ── Projects ───────────────────────────────────────────────────────────
+
+export async function listProjects(): Promise<Project[]> {
+  const res = await fetch("/api/projects", { headers: authHeaders() });
+  if (!res.ok) await throwApiError(res, "Failed to load projects");
+  return res.json();
+}
+
+export async function createProject(payload: {
+  name: string;
+  description: string;
+  members?: Array<{ user_id: number; role: string }>;
+}): Promise<Project> {
+  const res = await fetch("/api/projects", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ ...payload, members: payload.members ?? [] }),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to create project");
+  return res.json();
+}
+
+export async function getProject(projectId: number): Promise<Project> {
+  const res = await fetch(`/api/projects/${projectId}`, { headers: authHeaders() });
+  if (!res.ok) await throwApiError(res, "Failed to load project");
+  return res.json();
+}
+
+export async function listProjectAssets(projectId: number): Promise<Asset[]> {
+  const res = await fetch(`/api/projects/${projectId}/assets`, { headers: authHeaders() });
+  if (!res.ok) await throwApiError(res, "Failed to load project assets");
+  return res.json();
+}
+
+export async function uploadProjectAsset(projectId: number, kind: string, file: File): Promise<Asset> {
+  const form = new FormData();
+  form.append("kind", kind);
+  form.append("file", file);
+
+  const headers: Record<string, string> = {};
+  if (_token) headers["Authorization"] = `Bearer ${_token}`;
+
+  const res = await fetch(`/api/projects/${projectId}/assets`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  if (!res.ok) await throwApiError(res, "Failed to upload project asset");
+  return res.json();
+}
+
+export async function listProjectWorkflows(projectId: number): Promise<ProjectWorkflow[]> {
+  const res = await fetch(`/api/projects/${projectId}/workflows`, { headers: authHeaders() });
+  if (!res.ok) await throwApiError(res, "Failed to load project workflows");
+  return res.json();
+}
+
+export async function addProjectWorkflow(
+  projectId: number,
+  payload: { workflow_id: string; display_name?: string | null; defaults?: Record<string, unknown> }
+): Promise<ProjectWorkflow> {
+  const res = await fetch(`/api/projects/${projectId}/workflows`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to add workflow to project");
+  return res.json();
+}
+
+export async function runProjectWorkflow(
+  projectId: number,
+  projectWorkflowId: number,
+  inputValues: Record<string, unknown>
+): Promise<ProjectRemoteRun> {
+  const res = await fetch(`/api/projects/${projectId}/workflows/${projectWorkflowId}/runs`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ input_values: inputValues }),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to run project workflow");
+  return res.json();
+}
+
+export async function refreshProjectRemoteRun(projectId: number, runId: number): Promise<ProjectRemoteRun> {
+  const res = await fetch(`/api/projects/${projectId}/remote-runs/${runId}/refresh`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) await throwApiError(res, "Failed to refresh project run");
+  return res.json();
+}
+
+export async function listProjectHistory(projectId: number): Promise<ProjectHistoryItem[]> {
+  const res = await fetch(`/api/projects/${projectId}/history`, { headers: authHeaders() });
+  if (!res.ok) await throwApiError(res, "Failed to load project history");
+  return res.json();
 }
 
 // ── Jobs ────────────────────────────────────────────────────────────────

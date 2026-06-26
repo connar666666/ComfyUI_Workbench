@@ -11,8 +11,11 @@ from .config import WorkbenchSettings, load_settings
 from .db import initialize_db
 from .errors import PermissionDeniedError, ServiceUnavailableError, ValidationError, WorkbenchError
 from .repositories import WorkbenchRepository
+from .permissions import require_project_role
 from .services.assets import AssetService
 from .services.jobs import JobService
+from .services.projects import ProjectService
+from .services.project_workflows import ProjectWorkflowService
 from .sse import EventType, get_event_bus
 
 
@@ -39,6 +42,27 @@ class ResolveUsersRequest(BaseModel):
 
 class RunRemoteWorkflowRequest(BaseModel):
     input_values: dict[str, object]
+
+
+class ProjectMemberInput(BaseModel):
+    user_id: int
+    role: str
+
+
+class CreateProjectRequest(BaseModel):
+    name: str
+    description: str = ""
+    members: list[ProjectMemberInput] = []
+
+
+class SetProjectMemberRequest(BaseModel):
+    role: str
+
+
+class AddProjectWorkflowRequest(BaseModel):
+    workflow_id: str
+    display_name: str | None = None
+    defaults: dict[str, object] = {}
 
 
 def _user_color(user_id: str) -> str:
@@ -156,6 +180,138 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
         return AssetService(repo, storage).list_assets(
             kind=kind, user_id=user.id, role=user.role,
         )
+
+    # ── Projects ─────────────────────────────────────────────────────
+
+    @app.get("/api/projects")
+    def list_projects(user: CurrentUser = Depends(get_current_user)):
+        return ProjectService(repo).list_projects(user=user)
+
+    @app.post("/api/projects")
+    def create_project(
+        payload: CreateProjectRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return ProjectService(repo).create_project(
+            user=user,
+            name=payload.name,
+            description=payload.description,
+            members=[item.model_dump() for item in payload.members],
+        )
+
+    @app.get("/api/projects/{project_id}")
+    def get_project(project_id: int, user: CurrentUser = Depends(get_current_user)):
+        return ProjectService(repo).get_project(user=user, project_id=project_id)
+
+    @app.put("/api/projects/{project_id}/members/{member_user_id}")
+    def set_project_member(
+        project_id: int,
+        member_user_id: int,
+        payload: SetProjectMemberRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return ProjectService(repo).set_member(
+            user=user,
+            project_id=project_id,
+            member_user_id=member_user_id,
+            role=payload.role,
+        )
+
+    @app.delete("/api/projects/{project_id}/members/{member_user_id}")
+    def remove_project_member(
+        project_id: int,
+        member_user_id: int,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        ProjectService(repo).remove_member(user=user, project_id=project_id, member_user_id=member_user_id)
+        return {"ok": True}
+
+    @app.get("/api/projects/{project_id}/assets")
+    def list_project_assets(
+        project_id: int,
+        kind: str | None = None,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        require_project_role(repo, user, project_id, {"owner", "editor", "viewer"})
+        return AssetService(repo, storage).list_assets(kind=kind, project_id=project_id, role="admin")
+
+    @app.post("/api/projects/{project_id}/assets")
+    async def upload_project_asset(
+        project_id: int,
+        kind: str = Form(...),
+        folder_id: int | None = Form(default=None),
+        file: UploadFile = File(...),
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        require_project_role(repo, user, project_id, {"owner", "editor"})
+        result = AssetService(repo, storage).upload_asset(
+            user=user,
+            kind=kind,  # type: ignore[arg-type]
+            filename=file.filename or "upload.bin",
+            mime_type=file.content_type or "application/octet-stream",
+            stream=file.file,
+            folder_id=folder_id,
+            project_id=project_id,
+        )
+        event_bus.publish(EventType.ASSET_UPLOADED, {"asset": result}, visible_to="all")
+        return result
+
+    @app.get("/api/projects/{project_id}/workflows")
+    def list_project_workflows(project_id: int, user: CurrentUser = Depends(get_current_user)):
+        from .remote_workflows import RemoteWorkflowClient
+
+        service = ProjectWorkflowService(repo, RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token), storage)
+        return service.list_workflows(user=user, project_id=project_id)
+
+    @app.post("/api/projects/{project_id}/workflows")
+    def add_project_workflow(
+        project_id: int,
+        payload: AddProjectWorkflowRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        service = ProjectWorkflowService(repo, RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token), storage)
+        return service.add_workflow(
+            user=user,
+            project_id=project_id,
+            workflow_id=payload.workflow_id,
+            display_name=payload.display_name,
+            defaults=payload.defaults,
+        )
+
+    @app.post("/api/projects/{project_id}/workflows/{project_workflow_id}/runs")
+    def run_project_workflow(
+        project_id: int,
+        project_workflow_id: int,
+        payload: RunRemoteWorkflowRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        service = ProjectWorkflowService(repo, RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token), storage)
+        return service.run_workflow(
+            user=user,
+            project_id=project_id,
+            project_workflow_id=project_workflow_id,
+            input_values=payload.input_values,
+        )
+
+    @app.post("/api/projects/{project_id}/remote-runs/{run_id}/refresh")
+    def refresh_project_remote_run(
+        project_id: int,
+        run_id: int,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        service = ProjectWorkflowService(repo, RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token), storage)
+        return service.refresh_run(user=user, project_id=project_id, run_id=run_id)
+
+    @app.get("/api/projects/{project_id}/history")
+    def list_project_history(project_id: int, user: CurrentUser = Depends(get_current_user)):
+        require_project_role(repo, user, project_id, {"owner", "editor", "viewer"})
+        return repo.list_project_history(project_id)
 
     @app.post("/api/assets")
     async def upload_asset(

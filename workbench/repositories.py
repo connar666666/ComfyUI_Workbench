@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import sqlite3
+
 from .db import connect_db, utc_now
 from .errors import ConflictError, NotFoundError, PermissionDeniedError
 
@@ -187,6 +189,128 @@ class WorkbenchRepository:
             conn.execute("delete from project_members where project_id = ? and user_id = ?", (project_id, user_id))
             conn.commit()
 
+    # ── Folders ────────────────────────────────────────────────────────
+
+    def create_folder(
+        self,
+        *,
+        scope: str,
+        name: str,
+        parent_id: int | None,
+        created_by: int | None,
+    ) -> int:
+        now = utc_now()
+        with connect_db(self.db_path) as conn:
+            cur = conn.execute(
+                """
+                insert into folders(parent_id, scope, name, created_by, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?)
+                """,
+                (parent_id, scope, name, created_by, now, now),
+            )
+            conn.commit()
+            return cur.lastrowid
+
+    def get_folder(self, folder_id: int) -> dict[str, Any]:
+        with connect_db(self.db_path) as conn:
+            row = conn.execute(
+                """
+                select f.*, coalesce(cnt.c, 0) as asset_count
+                from folders f
+                left join (
+                    select folder_id, count(*) as c
+                    from assets
+                    where deleted_at is null and folder_id is not null
+                    group by folder_id
+                ) cnt on cnt.folder_id = f.id
+                where f.id = ?
+                """,
+                (folder_id,),
+            ).fetchone()
+        if row is None:
+            raise NotFoundError(folder_id)
+        return dict(row)
+
+    def list_folders(
+        self,
+        *,
+        scope: str,
+        parent_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        sql = """
+            select f.*, coalesce(cnt.c, 0) as asset_count
+            from folders f
+            left join (
+                select folder_id, count(*) as c
+                from assets
+                where deleted_at is null and folder_id is not null
+                group by folder_id
+            ) cnt on cnt.folder_id = f.id
+            where f.scope = ?
+        """
+        params: list[Any] = [scope]
+        if parent_id is None:
+            sql += " and f.parent_id is null"
+        else:
+            sql += " and f.parent_id = ?"
+            params.append(parent_id)
+        sql += " order by f.name collate nocase asc, f.id asc"
+        with connect_db(self.db_path) as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def rename_folder(self, folder_id: int, name: str) -> dict[str, Any]:
+        now = utc_now()
+        with connect_db(self.db_path) as conn:
+            conn.execute(
+                "update folders set name = ?, updated_at = ? where id = ?",
+                (name, now, folder_id),
+            )
+            conn.commit()
+        return self.get_folder(folder_id)
+
+    def delete_folder(self, folder_id: int) -> None:
+        with connect_db(self.db_path) as conn:
+            conn.execute("delete from folders where id = ?", (folder_id,))
+            conn.commit()
+
+    def count_assets_in_folder(self, folder_id: int) -> int:
+        with connect_db(self.db_path) as conn:
+            row = conn.execute(
+                "select count(*) as c from assets where folder_id = ? and deleted_at is null",
+                (folder_id,),
+            ).fetchone()
+        return int(row["c"])
+
+    def count_child_folders(self, folder_id: int) -> int:
+        with connect_db(self.db_path) as conn:
+            row = conn.execute(
+                "select count(*) as c from folders where parent_id = ?",
+                (folder_id,),
+            ).fetchone()
+        return int(row["c"])
+
+    def find_folder_by_name(
+        self,
+        *,
+        scope: str,
+        name: str,
+        parent_id: int | None,
+        exclude_id: int | None = None,
+    ) -> dict[str, Any] | None:
+        sql = "select * from folders where scope = ? and name = ?"
+        params: list[Any] = [scope, name]
+        if parent_id is None:
+            sql += " and parent_id is null"
+        else:
+            sql += " and parent_id = ?"
+            params.append(parent_id)
+        if exclude_id is not None:
+            sql += " and id != ?"
+            params.append(exclude_id)
+        with connect_db(self.db_path) as conn:
+            row = conn.execute(sql, params).fetchone()
+        return dict(row) if row else None
+
     # ── Invite tokens ──────────────────────────────────────────────────
 
     def create_invite(
@@ -299,6 +423,7 @@ class WorkbenchRepository:
         user_id: int | None = None,
         role: str | None = None,
         project_id: int | None = None,
+        folder_id: int | None = None,
     ) -> list[dict[str, Any]]:
         sql = "select a.*, u.username as uploaded_by_username from assets a left join users u on a.uploaded_by = u.id where a.deleted_at is null"
         params: list[Any] = []
@@ -308,6 +433,9 @@ class WorkbenchRepository:
         if kind:
             sql += " and a.kind = ?"
             params.append(kind)
+        if folder_id is not None:
+            sql += " and a.folder_id = ?"
+            params.append(folder_id)
         if role != "admin" and user_id is not None:
             sql += " and a.uploaded_by = ?"
             params.append(user_id)

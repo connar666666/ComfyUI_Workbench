@@ -13,6 +13,7 @@ from .errors import PermissionDeniedError, ServiceUnavailableError, ValidationEr
 from .repositories import WorkbenchRepository
 from .permissions import require_project_role
 from .services.assets import AssetService
+from .services.folders import FolderService
 from .services.jobs import JobService
 from .services.projects import ProjectService
 from .services.project_workflows import ProjectWorkflowService
@@ -63,6 +64,16 @@ class AddProjectWorkflowRequest(BaseModel):
     workflow_id: str
     display_name: str | None = None
     defaults: dict[str, object] = {}
+
+
+class CreateFolderRequest(BaseModel):
+    scope: str = "assets"
+    name: str
+    parent_id: int | None = None
+
+
+class RenameFolderRequest(BaseModel):
+    name: str
 
 
 def _user_color(user_id: str) -> str:
@@ -175,11 +186,52 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
     @app.get("/api/assets")
     def list_assets(
         kind: str | None = None,
+        folder_id: int | None = None,
         user: CurrentUser = Depends(get_current_user),
     ):
         return AssetService(repo, storage).list_assets(
-            kind=kind, user_id=user.id, role=user.role,
+            kind=kind, user_id=user.id, role=user.role, folder_id=folder_id,
         )
+
+    # ── Folders ─────────────────────────────────────────────────────
+
+    @app.get("/api/folders")
+    def list_folders(
+        scope: str = "assets",
+        parent_id: int | None = None,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return FolderService(repo).list_folders(scope=scope, parent_id=parent_id)
+
+    @app.post("/api/folders")
+    def create_folder(
+        payload: CreateFolderRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return FolderService(repo).create_folder(
+            user=user,
+            scope=payload.scope,
+            name=payload.name,
+            parent_id=payload.parent_id,
+        )
+
+    @app.patch("/api/folders/{folder_id}")
+    def rename_folder(
+        folder_id: int,
+        payload: RenameFolderRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        return FolderService(repo).rename_folder(
+            user=user, folder_id=folder_id, name=payload.name,
+        )
+
+    @app.delete("/api/folders/{folder_id}")
+    def delete_folder(
+        folder_id: int,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        FolderService(repo).delete_folder(user=user, folder_id=folder_id)
+        return {"ok": True}
 
     # ── Projects ─────────────────────────────────────────────────────
 
@@ -230,10 +282,13 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
     def list_project_assets(
         project_id: int,
         kind: str | None = None,
+        folder_id: int | None = None,
         user: CurrentUser = Depends(get_current_user),
     ):
         require_project_role(repo, user, project_id, {"owner", "editor", "viewer"})
-        return AssetService(repo, storage).list_assets(kind=kind, project_id=project_id, role="admin")
+        return AssetService(repo, storage).list_assets(
+            kind=kind, project_id=project_id, role="admin", folder_id=folder_id,
+        )
 
     @app.post("/api/projects/{project_id}/assets")
     async def upload_project_asset(

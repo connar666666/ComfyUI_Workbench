@@ -1,24 +1,21 @@
 import { useEffect, useState } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
-  Cloud,
   Folder,
+  HardDrive,
+  History,
   Images,
   Layers,
-  ListVideo,
   LogOut,
   Plus,
-  PlusCircle,
   Server,
+  Sparkles,
   UserPlus,
+  Users,
   Video,
   Workflow,
-  Users,
 } from "lucide-react";
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AssetsPage } from "./pages/AssetsPage";
-import { NewJobPage } from "./pages/NewJobPage";
 import { JobsPage } from "./pages/JobsPage";
 import { ComfyQueuePage } from "./pages/ComfyQueuePage";
 import { VideosPage } from "./pages/VideosPage";
@@ -26,7 +23,6 @@ import { CanvasPage } from "./features/canvas/components/CanvasPage";
 import { LoginPage } from "./pages/LoginPage";
 import { JoinPage } from "./pages/JoinPage";
 import { InvitePage } from "./pages/InvitePage";
-import { RemoteWorkflowsPage } from "./pages/RemoteWorkflowsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -69,6 +65,7 @@ function Sidebar() {
 
   const initial = (user?.display_name || user?.username || "?").slice(0, 1).toUpperCase();
   const insideProject = !!currentProject && location.pathname.startsWith("/projects/");
+  const RENDER_QUEUE_BADGE = 1;
 
   return (
     <aside className="sidebar">
@@ -89,46 +86,28 @@ function Sidebar() {
           }
         }}
       >
-        <div className="sidebar-project-kicker">当前项目</div>
-        {currentProject ? (
-          <>
+        <div className="sidebar-project-icon">
+          <Sparkles size={16} />
+        </div>
+        <div className="sidebar-project-info">
+          <div className="sidebar-project-kicker">当前项目</div>
+          {currentProject ? (
             <div className="sidebar-project-name">
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {currentProject.name}
               </span>
-              <ChevronRight size={14} color="var(--sidebar-muted)" />
             </div>
-            <div className="sidebar-project-meta">
-              {currentProject.memberCount != null
-                ? `${currentProject.memberCount} 名成员 · 工作区`
-                : "项目工作区"}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="sidebar-project-name sidebar-project-empty">选择项目</div>
-            <div className="sidebar-project-meta">前往项目空间开始</div>
-          </>
-        )}
+          ) : (
+            <div className="sidebar-project-name sidebar-project-empty">未命名视频序列</div>
+          )}
+        </div>
       </div>
 
       {currentProject && (
         <nav className="sidebar-project-nav" aria-label="当前项目子导航">
-          <NavLink
-            to={`/projects/${currentProject.id}`}
-            end
-            className="sidebar-project-nav-item"
-          >
-            <Folder size={13} />
-            <span>项目空间</span>
-          </NavLink>
-          <NavLink to="/assets" className="sidebar-project-nav-item">
-            <Images size={13} />
-            <span>素材库</span>
-          </NavLink>
-          <NavLink to="/canvas" className="sidebar-project-nav-item">
-            <Workflow size={13} />
-            <span>创作画布</span>
+          <NavLink to="/canvas" end className="sidebar-project-nav-item">
+            <Workflow size={14} />
+            <span>视频创作</span>
             <button
               type="button"
               className="sidebar-project-nav-add"
@@ -142,8 +121,24 @@ function Sidebar() {
               <Plus size={11} />
             </button>
           </NavLink>
-          <NavLink to="/videos" className="sidebar-project-nav-item">
-            <Video size={13} />
+          <NavLink to="/assets" end className="sidebar-project-nav-item">
+            <Images size={14} />
+            <span>素材库</span>
+          </NavLink>
+          <NavLink
+            to={`/projects/${currentProject.id}`}
+            end
+            className="sidebar-project-nav-item"
+          >
+            <Folder size={14} />
+            <span>提示词助手</span>
+          </NavLink>
+          <NavLink to="/jobs" end className="sidebar-project-nav-item">
+            <History size={14} />
+            <span>历史记录</span>
+          </NavLink>
+          <NavLink to="/videos" end className="sidebar-project-nav-item">
+            <Video size={14} />
             <span>视频库</span>
           </NavLink>
         </nav>
@@ -151,38 +146,42 @@ function Sidebar() {
 
       {isAuthenticated ? (
         <>
-          <div className="sidebar-group-label">导航</div>
-          <NavLink to="/projects" end>
-            <Layers size={15} />
-            项目列表
+          <div className="sidebar-section-divider" />
+
+          <NavLink to="/comfyui" end className="sidebar-status-link">
+            <span className="sidebar-status-link-row">
+              <Layers size={15} />
+              <span>渲染队列</span>
+            </span>
+            <span className="sidebar-status-badge">{RENDER_QUEUE_BADGE}</span>
           </NavLink>
 
-          <div className="sidebar-group-label">工具</div>
-          <NavLink to="/jobs/new"><PlusCircle size={15} />创建任务</NavLink>
-          <NavLink to="/jobs"><ListVideo size={15} />任务队列</NavLink>
-          <NavLink to="/comfyui"><Server size={15} />ComfyUI 队列</NavLink>
-          <NavLink to="/remote-workflows"><Cloud size={15} />远程工作流</NavLink>
+          <NavLink to="/jobs" end className="sidebar-status-link">
+            <span className="sidebar-status-link-row">
+              <HardDrive size={15} />
+              <span>存储空间</span>
+            </span>
+            <span className="sidebar-storage-inline">
+              <span className="sidebar-storage-inline-text">842 GB</span>
+              <span className="sidebar-storage-inline-track">
+                <span className="sidebar-storage-inline-fill" style={{ width: "82%" }} />
+              </span>
+            </span>
+          </NavLink>
+
+          <div className="sidebar-section-divider" />
+
+          <NavLink to="/projects" end className="sidebar-tool-link">
+            <Server size={14} />
+            <span>切换项目</span>
+          </NavLink>
 
           {user?.role === "admin" && (
-            <>
-              <div className="sidebar-group-label">管理</div>
-              <NavLink to="/invite"><UserPlus size={15} />邀请成员</NavLink>
-            </>
+            <NavLink to="/invite" end className="sidebar-tool-link">
+              <UserPlus size={14} />
+              <span>邀请成员</span>
+            </NavLink>
           )}
-
-          <div className="sidebar-status-card">
-            <div className="sidebar-status-row">
-              <span>渲染队列</span>
-              <strong style={{ color: "var(--accent)" }}>3 进行中</strong>
-            </div>
-            <div className="sidebar-status-row">
-              <span>存储使用</span>
-              <strong>842 GB / 1 TB</strong>
-            </div>
-            <div className="sidebar-storage-bar">
-              <div />
-            </div>
-          </div>
 
           <div className="sidebar-spacer" />
 
@@ -265,10 +264,8 @@ function AppShell() {
           <Route path="/projects/:projectId" element={isAuthenticated ? <ProjectDetailPage /> : <Navigate to="/login" />} />
           <Route path="/assets" element={isAuthenticated ? <AssetsPage /> : <Navigate to="/login" />} />
           <Route path="/canvas" element={isAuthenticated ? <CanvasPage /> : <Navigate to="/login" />} />
-          <Route path="/jobs/new" element={isAuthenticated ? <NewJobPage /> : <Navigate to="/login" />} />
           <Route path="/jobs" element={isAuthenticated ? <JobsPage /> : <Navigate to="/login" />} />
           <Route path="/comfyui" element={isAuthenticated ? <ComfyQueuePage /> : <Navigate to="/login" />} />
-          <Route path="/remote-workflows" element={isAuthenticated ? <RemoteWorkflowsPage /> : <Navigate to="/login" />} />
           <Route path="/videos" element={isAuthenticated ? <VideosPage /> : <Navigate to="/login" />} />
           <Route path="/invite" element={isAuthenticated ? <InvitePage /> : <Navigate to="/login" />} />
         </Routes>

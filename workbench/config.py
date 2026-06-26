@@ -16,6 +16,8 @@ class WorkbenchSettings:
     root_dir: Path
     db_path: Path
     comfyui_url: str
+    zealman_base_url: str | None
+    zealman_token: str | None
     default_user: str
     default_role: str
     jwt_secret: str
@@ -37,6 +39,8 @@ def load_settings() -> WorkbenchSettings:
         root_dir=root,
         db_path=db_path,
         comfyui_url=os.environ.get("COMFYUI_URL", "http://192.168.7.75:8188").rstrip("/"),
+        zealman_base_url=os.environ.get("ZEALMAN_BASE_URL", "").rstrip("/") or None,
+        zealman_token=os.environ.get("ZEALMAN_TOKEN") or None,
         default_user=os.environ.get("WORKBENCH_DEFAULT_USER", "local-user"),
         default_role=os.environ.get("WORKBENCH_DEFAULT_ROLE", "admin"),
         jwt_secret=_dev_jwt_secret(),

@@ -37,6 +37,10 @@ class ResolveUsersRequest(BaseModel):
     userIds: list[str]
 
 
+class RunRemoteWorkflowRequest(BaseModel):
+    input_values: dict[str, object]
+
+
 def _user_color(user_id: str) -> str:
     if user_id.isdigit():
         return f"hsl({(int(user_id) * 47) % 360} 70% 45%)"
@@ -242,6 +246,62 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
             raise ServiceUnavailableError("ComfyUI queue is unavailable") from exc
         except ValueError as exc:
             raise ServiceUnavailableError("ComfyUI queue returned an invalid response") from exc
+
+    # ── Remote Workflows ─────────────────────────────────────────────
+
+    @app.get("/api/remote-workflows")
+    def list_remote_workflows(user: CurrentUser = Depends(get_current_user)):
+        from .remote_workflows import RemoteWorkflowClient
+
+        client = RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token)
+        return {"workflows": client.list_workflows()}
+
+    @app.post("/api/remote-workflows/uploads")
+    async def upload_remote_workflow_file(
+        file: UploadFile = File(...),
+        overwrite: bool = Form(default=False),
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        client = RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token)
+        return client.upload_file(
+            file=file.file,
+            filename=file.filename or "upload.bin",
+            content_type=file.content_type,
+            overwrite=overwrite,
+        )
+
+    @app.get("/api/remote-workflows/runs/{prompt_id}")
+    def get_remote_workflow_result(
+        prompt_id: str,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        client = RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token)
+        return client.get_result(prompt_id)
+
+    @app.get("/api/remote-workflows/{workflow_id}")
+    def get_remote_workflow(
+        workflow_id: str,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        client = RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token)
+        return client.get_workflow(workflow_id)
+
+    @app.post("/api/remote-workflows/{workflow_id}/run")
+    def run_remote_workflow(
+        workflow_id: str,
+        payload: RunRemoteWorkflowRequest,
+        user: CurrentUser = Depends(get_current_user),
+    ):
+        from .remote_workflows import RemoteWorkflowClient
+
+        client = RemoteWorkflowClient(settings.zealman_base_url, settings.zealman_token)
+        return client.run_workflow(workflow_id, payload.input_values)
 
     # ── Users ────────────────────────────────────────────────────────
 

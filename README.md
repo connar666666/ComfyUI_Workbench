@@ -87,6 +87,8 @@ cd web && npm run dev
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `COMFYUI_URL` | `http://192.168.7.75:8188` | ComfyUI 实例地址 |
+| `ZEALMAN_BASE_URL` | 未设置 | 远程 zealman 面板地址，用于“远程工作流”页面 |
+| `ZEALMAN_TOKEN` | 未设置 | 远程 zealman 面板 Bearer token |
 | `WORKBENCH_ROOT` | `~/.openclaw/shared-workbench` | 文件存储根目录 |
 | `WORKBENCH_DB` | `<root>/workbench.sqlite` | SQLite 数据库路径 |
 | `WORKBENCH_DEFAULT_USER` | `local-user` | 默认用户名 |

@@ -19,7 +19,7 @@ from .auth import (
     make_invite_link,
     verify_password,
 )
-from .errors import ConflictError, PermissionDeniedError, ValidationError, WorkbenchError
+from .errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError, WorkbenchError
 from .repositories import WorkbenchRepository
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])

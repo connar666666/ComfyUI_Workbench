@@ -25,5 +25,8 @@ web/dist/
 # Storage (generated at runtime)
 ~/.openclaw/
 
+#tests
+.pytest_cache/
+
 .superpowers/
 tmp

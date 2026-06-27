@@ -140,6 +140,7 @@ def initialize_db(
 
     with connect_db(target_url) as conn:
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        conn.execute("alter table folders add column if not exists description text not null default ''")
         now = utc_now()
         conn.execute(
             """

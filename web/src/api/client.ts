@@ -262,12 +262,19 @@ export async function createAssetFolder(
   name: string,
   scope: FolderScope = "assets",
   parentId?: string | null,
-  projectId?: string | null
+  projectId?: string | null,
+  description: string = ""
 ): Promise<AssetFolder> {
   const res = await fetch("/api/folders", {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ scope, name, parent_id: parentId ?? null, project_id: projectId ?? null }),
+    body: JSON.stringify({
+      scope,
+      name,
+      description,
+      parent_id: parentId ?? null,
+      project_id: projectId ?? null,
+    }),
   });
   if (!res.ok) await throwApiError(res, "Failed to create folder");
   return res.json();

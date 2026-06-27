@@ -1,0 +1,54 @@
+# Local infrastructure for ComfyUI Workbench.
+#
+# Started automatically by `start.sh` the first time it runs, or manually with:
+#   docker compose up -d
+#
+# Credentials here MUST match the defaults in workbench/config.py:
+#   - DATABASE_URL defaults to postgresql://lijiahao:123456@localhost:5432/postgres
+#   - MINIO_ACCESS_KEY defaults to "minio" / MINIO_SECRET_KEY to "minioadmin"
+# Override via environment variables (DATABASE_URL, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, …)
+# if you need different credentials.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: workbench-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lijiahao}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - workbench-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready ships in the postgres image; -U matches POSTGRES_USER above.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lijiahao} -d ${POSTGRES_DB:-postgres}"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    container_name: workbench-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API — backend default MINIO_ENDPOINT=localhost:9000
+      - "9001:9001"   # Web console (optional, http://localhost:9001)
+    volumes:
+      - workbench-minio-data:/data
+    healthcheck:
+      # /minio/health/live returns 200 once the server is ready to serve requests.
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  workbench-postgres-data:
+  workbench-minio-data:

@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Database, Layers, Plus, Rocket, Users } from "lucide-react";
 import { createProject, listProjects } from "../api/client";
+import { FormDialog } from "../components/FormDialog";
 import type { Project } from "../types";
 
 const CURRENT_PROJECT_KEY = "workbench.currentProject";
@@ -75,6 +76,7 @@ export function ProjectsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   const loadProjects = () =>
     listProjects()
@@ -89,23 +91,29 @@ export function ProjectsPage() {
     loadProjects();
   }, []);
 
+  const closeCreateDialog = () => {
+    setShowCreate(false);
+    setName("");
+    setDescription("");
+    setCreateError("");
+  };
+
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError("项目名称不能为空");
+      setCreateError("项目名称不能为空");
       return;
     }
     setCreating(true);
+    setCreateError("");
     try {
       await createProject({ name: trimmedName, description: description.trim(), members: [] });
-      setName("");
-      setDescription("");
-      setShowCreate(false);
+      closeCreateDialog();
       setLoading(true);
       await loadProjects();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建项目失败");
+      setCreateError(err instanceof Error ? err.message : "创建项目失败");
     } finally {
       setCreating(false);
     }
@@ -145,7 +153,14 @@ export function ProjectsPage() {
           <p className="page-subtitle">欢迎回到 FrameWeave AIGC 工作区。在这里管理生成式项目、训练模型与创意资产。</p>
         </div>
         <div className="page-toolbar">
-          <button className="btn-primary" type="button" onClick={() => setShowCreate((current) => !current)}>
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={() => {
+              setCreateError("");
+              setShowCreate(true);
+            }}
+          >
             <Plus size={16} />
             创建新项目
           </button>
@@ -154,8 +169,14 @@ export function ProjectsPage() {
 
       {error && <div className="auth-error" style={{ marginBottom: 16 }}>{error}</div>}
 
-      {showCreate && (
+      <FormDialog
+        open={showCreate}
+        title="创建新项目"
+        description="填写项目名称和说明，创建后即可进入工作区继续整理素材与流程。"
+        onClose={closeCreateDialog}
+      >
         <form className="project-create-form" onSubmit={handleCreate}>
+          {createError ? <div className="auth-error">{createError}</div> : null}
           <label>
             项目名称
             <input
@@ -174,16 +195,16 @@ export function ProjectsPage() {
               rows={3}
             />
           </label>
-          <div className="page-toolbar">
+          <div className="form-dialog-actions">
             <button className="btn-primary" type="submit" disabled={creating}>
               {creating ? "创建中..." : "创建项目"}
             </button>
-            <button className="btn-secondary" type="button" onClick={() => setShowCreate(false)}>
+            <button className="btn-secondary" type="button" onClick={closeCreateDialog} disabled={creating}>
               取消
             </button>
           </div>
         </form>
-      )}
+      </FormDialog>
 
       {projects.length > 0 && (
         <div className="project-bento">

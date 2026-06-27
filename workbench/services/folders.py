@@ -38,11 +38,13 @@ class FolderService:
         user: CurrentUser,
         scope: FolderScope = "assets",
         name: str,
+        description: str = "",
         parent_id: str | None = None,
         project_id: str | None = None,
     ) -> dict[str, Any]:
         self._validate_scope(scope)
         clean_name = self._validate_name(name)
+        clean_description = self._validate_description(description)
         if project_id is not None:
             require_project_role(self.repo, user, project_id, {"owner", "editor"})
         if parent_id is not None:
@@ -60,6 +62,7 @@ class FolderService:
             folder_id = self.repo.create_folder(
                 scope=scope,
                 name=clean_name,
+                description=clean_description,
                 parent_id=parent_id,
                 project_id=project_id,
                 created_by=actor_id,
@@ -132,6 +135,12 @@ class FolderService:
         if len(clean) > _NAME_MAX:
             raise ValidationError(f"folder name must be {_NAME_MAX} characters or fewer")
         return clean
+
+    @staticmethod
+    def _validate_description(description: str) -> str:
+        if not isinstance(description, str):
+            raise ValidationError("folder description must be a string")
+        return description.strip()
 
     def _get_folder_or_raise(self, folder_id: int, *, scope: FolderScope) -> dict[str, Any]:
         folder = self.repo.get_folder(folder_id)

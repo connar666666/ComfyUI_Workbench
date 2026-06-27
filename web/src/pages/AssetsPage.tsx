@@ -25,6 +25,7 @@ import {
   uploadAsset,
   uploadProjectAsset,
 } from "../api/client";
+import { FormDialog } from "../components/FormDialog";
 import { useSSE } from "../hooks/useSSE";
 import type { Asset, AssetFolder, SSEEvent } from "../types";
 
@@ -67,6 +68,7 @@ export function AssetsPage() {
   const [folderFilter, setFolderFilter] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderDescription, setNewFolderDescription] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [createError, setCreateError] = useState("");
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
@@ -145,16 +147,28 @@ export function AssetsPage() {
     setCreatingFolder(true);
     setCreateError("");
     try {
-      const created = await createAssetFolder(trimmed, "assets", null, currentProject?.id ?? null);
+      const created = await createAssetFolder(
+        trimmed,
+        "assets",
+        null,
+        currentProject?.id ?? null,
+        newFolderDescription.trim()
+      );
       setFolders((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN")));
       setFolderFilter(created.id);
-      setShowCreate(false);
-      setNewFolderName("");
+      closeCreateDialog();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "创建文件夹失败");
     } finally {
       setCreatingFolder(false);
     }
+  };
+
+  const closeCreateDialog = () => {
+    setShowCreate(false);
+    setNewFolderName("");
+    setNewFolderDescription("");
+    setCreateError("");
   };
 
   const handleDeleteFolder = async (folder: AssetFolder, event: React.MouseEvent) => {
@@ -224,16 +238,21 @@ export function AssetsPage() {
       <div className="assets-toolbar">
         <div className="assets-breadcrumb">
           <button type="button" onClick={() => setFolderFilter(null)}>全部素材</button>
-          <ChevronRight size={14} />
-          <span className="assets-breadcrumb-current">
-            {selectedFolder ? selectedFolder.name : "未分类"}
-          </span>
+          {selectedFolder && (
+            <>
+              <ChevronRight size={14} />
+              <span className="assets-breadcrumb-current">{selectedFolder.name}</span>
+            </>
+          )}
         </div>
         <div className="assets-toolbar-actions">
           <button
             type="button"
             className="btn btn-outline"
-            onClick={() => setShowCreate((prev) => !prev)}
+            onClick={() => {
+              setCreateError("");
+              setShowCreate(true);
+            }}
           >
             <FolderPlus size={15} />
             新建文件夹
@@ -246,8 +265,16 @@ export function AssetsPage() {
         </div>
       </div>
 
-      {showCreate && (
-        <form className="project-create-form assets-create-form" onSubmit={handleCreateFolder}>
+      {error && <div className="auth-error" style={{ marginBottom: 16 }}>{error}</div>}
+
+      <FormDialog
+        open={showCreate}
+        title="新建文件夹"
+        description="为素材建立更清晰的分类，名称必填，描述可选。"
+        onClose={closeCreateDialog}
+      >
+        <form className="project-create-form" onSubmit={handleCreateFolder}>
+          {createError ? <div className="auth-error">{createError}</div> : null}
           <label>
             文件夹名称
             <input
@@ -256,29 +283,29 @@ export function AssetsPage() {
               placeholder="例如：角色设定 / 镜头脚本"
               autoFocus
               maxLength={64}
+              disabled={creatingFolder}
             />
           </label>
-          {createError && <div className="auth-error">{createError}</div>}
-          <div className="page-toolbar">
-            <button className="btn btn-primary" type="submit" disabled={creatingFolder}>
+          <label>
+            文件夹描述
+            <textarea
+              value={newFolderDescription}
+              onChange={(event) => setNewFolderDescription(event.target.value)}
+              placeholder="补充这个文件夹的用途、范围或交付说明"
+              rows={3}
+              disabled={creatingFolder}
+            />
+          </label>
+          <div className="form-dialog-actions">
+            <button className="btn-primary" type="submit" disabled={!newFolderName.trim() || creatingFolder}>
               {creatingFolder ? "创建中..." : "创建文件夹"}
             </button>
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => {
-                setShowCreate(false);
-                setNewFolderName("");
-                setCreateError("");
-              }}
-            >
+            <button className="btn-secondary" type="button" onClick={closeCreateDialog} disabled={creatingFolder}>
               取消
             </button>
           </div>
         </form>
-      )}
-
-      {error && <div className="auth-error" style={{ marginBottom: 16 }}>{error}</div>}
+      </FormDialog>
 
       <section className="assets-section">
         <h2 className="assets-section-title">
@@ -307,7 +334,7 @@ export function AssetsPage() {
               className={`assets-folder-card glass-card${folderFilter == null ? " is-selected" : ""}`}
               onClick={() => setFolderFilter(null)}
             >
-              <div className="assets-folder-icon is-primary">
+              <div className="assets-folder-icon is-secondary">
                 <FolderOpen size={26} strokeWidth={1.6} />
               </div>
               <div className="assets-folder-info">
@@ -399,7 +426,7 @@ function FolderCard({ folder, index, selected, onSelect, onDelete }: FolderCardP
         </div>
         <div className="assets-folder-info">
           <h3>{folder.name}</h3>
-          <p>{folder.asset_count} 个项目</p>
+          <p>{folder.description?.trim() || `${folder.asset_count} 个项目`}</p>
         </div>
       </button>
       <button

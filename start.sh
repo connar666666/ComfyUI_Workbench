@@ -66,8 +66,120 @@ if [ ! -d "node_modules" ]; then
 fi
 echo "[OK] node dependencies"
 
-# ── Launch backend ──────────────────────────────────────
+# ── External services (Postgres / MinIO) ────────────────
+# The backend now requires Postgres + MinIO. After the migration, these are
+# NOT auto-started — this preflight brings them up via docker compose.
+#
+# Override behavior:
+#   - SKIP_DOCKER_DEPS=1   → assume services already running externally
+#   - DATABASE_URL=...     → only relevant if it points at postgres://*
+#   - STORAGE_BACKEND=local→ skip MinIO startup
+
 cd "$PROJECT_ROOT"
+
+need_postgres=0
+need_minio=0
+
+# workbench/config.py defaults: postgresql://lijiahao:123456@localhost:5432/postgres
+db_url="${DATABASE_URL:-postgresql://lijiahao:123456@localhost:5432/postgres}"
+case "$db_url" in
+    postgres://*|postgresql://*) need_postgres=1 ;;
+esac
+
+# default storage_backend in config.py is "minio"
+storage_backend="${STORAGE_BACKEND:-minio}"
+if [ "$storage_backend" = "minio" ]; then
+    need_minio=1
+fi
+
+start_via_docker() {
+    local svc="$1"
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "[ERROR] $svc required but 'docker' is not installed."
+        echo "        Install Docker Desktop (https://www.docker.com/products/docker-desktop)"
+        echo "        or set SKIP_DOCKER_DEPS=1 after starting $svc yourself."
+        exit 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        echo "[ERROR] $svc required but Docker daemon is not reachable."
+        echo "        Start Docker Desktop, or set SKIP_DOCKER_DEPS=1 after starting $svc yourself."
+        exit 1
+    fi
+    echo "  starting $svc via docker compose ..."
+    docker compose up -d "$svc"
+}
+
+wait_for_tcp_port() {
+    local host="$1" port="$2" name="$3" max="${4:-60}"
+    for _ in $(seq 1 "$max"); do
+        if (echo >"/dev/tcp/$host/$port") 2>/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo "[ERROR] $name not reachable at $host:$port after ${max}s"
+    return 1
+}
+
+wait_for_http() {
+    local url="$1" name="$2" max="${3:-60}"
+    for _ in $(seq 1 "$max"); do
+        if curl -fsS "$url" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo "[ERROR] $name health check failed at $url after ${max}s"
+    return 1
+}
+
+if [ "${SKIP_DOCKER_DEPS:-0}" != "1" ]; then
+    if [ "$need_postgres" -eq 1 ] || [ "$need_minio" -eq 1 ]; then
+        echo ""
+        echo "ensuring external services ..."
+        if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+            echo "[ERROR] docker-compose.yml missing at $PROJECT_ROOT"
+            exit 1
+        fi
+        if [ "$need_postgres" -eq 1 ]; then
+            start_via_docker postgres
+        fi
+        if [ "$need_minio" -eq 1 ]; then
+            start_via_docker minio
+        fi
+        # Parse host/port from DATABASE_URL (best effort).
+        pg_host="localhost"
+        pg_port="5432"
+        if [ "$need_postgres" -eq 1 ]; then
+            # strip scheme and credentials
+            db_no_scheme="${db_url#*://}"
+            db_no_creds="${db_no_scheme#*@}"
+            db_hostport="${db_no_creds%%/*}"
+            pg_host="${db_hostport%%:*}"
+            if echo "$db_hostport" | grep -q ':'; then
+                pg_port="${db_hostport##*:}"
+            fi
+            wait_for_tcp_port "$pg_host" "$pg_port" "postgres" 60 || exit 1
+            echo "[OK] postgres reachable at $pg_host:$pg_port"
+        fi
+        if [ "$need_minio" -eq 1 ]; then
+            minio_host="${MINIO_ENDPOINT:-localhost:9000}"
+            # MINIO_ENDPOINT may be "host:port" or just "host"
+            case "$minio_host" in
+                *:*) minio_port="${minio_host##*:}"; minio_host="${minio_host%%:*}" ;;
+                *)   minio_port="9000" ;;
+            esac
+            wait_for_tcp_port "$minio_host" "$minio_port" "minio" 60 || exit 1
+            # S3 API returns 200 on /minio/health/live once ready.
+            wait_for_http "http://$minio_host:$minio_port/minio/health/live" "minio" 60 || exit 1
+            echo "[OK] minio reachable at $minio_host:$minio_port"
+        fi
+    fi
+else
+    echo "[INFO] SKIP_DOCKER_DEPS=1 — assuming external services are already up"
+fi
+
+# ── Launch backend ──────────────────────────────────────
 echo ""
 echo "starting backend ..."
 COMFYUI_URL="$COMFYUI_URL" \

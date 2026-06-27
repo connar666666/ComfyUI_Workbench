@@ -20,6 +20,7 @@ export type Asset = {
 export type AssetFolder = {
   id: string;
   name: string;
+  description?: string;
   parent_id: string | null;
   scope: "assets" | "videos";
   asset_count: number;

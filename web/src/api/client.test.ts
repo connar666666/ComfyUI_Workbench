@@ -135,7 +135,7 @@ describe("auth API errors", () => {
     const client = await import("./client");
     await client.listAssetFolders("assets", null, projectId);
     await client.listProjectAssets(projectId, undefined, folderId);
-    await client.createAssetFolder("References", "assets", null, projectId);
+    await client.createAssetFolder("References", "assets", null, projectId, "Shot references");
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -152,7 +152,13 @@ describe("auth API errors", () => {
       "/api/folders",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ scope: "assets", name: "References", parent_id: null, project_id: projectId }),
+        body: JSON.stringify({
+          scope: "assets",
+          name: "References",
+          description: "Shot references",
+          parent_id: null,
+          project_id: projectId,
+        }),
       })
     );
   });

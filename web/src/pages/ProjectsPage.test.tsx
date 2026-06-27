@@ -83,6 +83,7 @@ describe("ProjectsPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "创建新项目" }));
+    expect(screen.getByRole("dialog", { name: "创建新项目" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("项目名称"), { target: { value: "New Film" } });
     fireEvent.change(screen.getByLabelText("项目描述"), { target: { value: "Storyboard exploration" } });
     fireEvent.click(screen.getByRole("button", { name: "创建项目" }));

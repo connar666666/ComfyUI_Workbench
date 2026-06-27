@@ -70,6 +70,7 @@ class AddProjectWorkflowRequest(BaseModel):
 class CreateFolderRequest(BaseModel):
     scope: str = "assets"
     name: str
+    description: str = ""
     parent_id: str | None = None
     project_id: str | None = None
 
@@ -223,6 +224,7 @@ def create_app(settings: WorkbenchSettings | None = None) -> FastAPI:
             user=user,
             scope=payload.scope,
             name=payload.name,
+            description=payload.description,
             parent_id=payload.parent_id,
             project_id=payload.project_id,
         )

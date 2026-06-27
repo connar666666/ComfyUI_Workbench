@@ -1117,13 +1117,8 @@ button:active,
 }
 
 .project-create-form {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  display: grid;
+  gap: 14px;
 }
 
 .project-create-form label {
@@ -1139,7 +1134,74 @@ button:active,
 
 .project-create-form input,
 .project-create-form textarea {
-  margin-bottom: var(--spacing-md);
+  margin-top: var(--spacing-xs);
+  margin-bottom: 0;
+}
+
+.form-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 10, 20, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.form-dialog {
+  width: min(100%, 520px);
+  padding: 20px;
+  border-color: rgba(208, 188, 255, 0.16);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.4);
+}
+
+.form-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.form-dialog-title {
+  font-size: 22px;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+
+.form-dialog-description {
+  color: var(--main-muted);
+  line-height: 1.6;
+}
+
+.form-dialog-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(208, 188, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--main-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.form-dialog-close:hover {
+  color: var(--main-text);
+  background: rgba(208, 188, 255, 0.08);
+  border-color: rgba(208, 188, 255, 0.24);
+}
+
+.form-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
 }
 
 /* ===== Sidebar User ===== */
@@ -1391,6 +1453,85 @@ button:active,
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
+}
+
+.assets-create-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: rgba(208, 188, 255, 0.06);
+  box-shadow: 0 0 0 1px rgba(208, 188, 255, 0.20), 0 6px 18px rgba(139, 92, 246, 0.15);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.assets-create-bar:focus-within {
+  background: rgba(208, 188, 255, 0.10);
+  box-shadow: 0 0 0 1px rgba(208, 188, 255, 0.45), 0 8px 22px rgba(139, 92, 246, 0.25);
+}
+
+.assets-create-bar-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.assets-create-bar input {
+  flex: 1;
+  min-width: 180px;
+  height: 28px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--main-text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 0 4px;
+  margin: 0;
+}
+
+.assets-create-bar input::placeholder {
+  color: var(--sidebar-muted);
+}
+
+.assets-create-bar input:disabled {
+  opacity: 0.6;
+}
+
+.assets-create-bar-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.assets-create-bar-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--main-text);
+}
+
+.assets-create-bar-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.assets-create-bar-action.is-confirm:not(:disabled) {
+  color: var(--accent);
+}
+
+.assets-create-bar-action.is-confirm:hover:not(:disabled) {
+  background: rgba(208, 188, 255, 0.18);
+  color: var(--accent);
 }
 
 .btn-danger-soft {

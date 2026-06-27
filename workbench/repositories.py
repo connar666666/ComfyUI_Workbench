@@ -221,6 +221,7 @@ class WorkbenchRepository:
         *,
         scope: str,
         name: str,
+        description: str,
         parent_id: str | None,
         project_id: str | None,
         created_by: str | None,
@@ -229,10 +230,10 @@ class WorkbenchRepository:
         with connect_db(self.db_path) as conn:
             cur = conn.execute(
                 """
-                insert into folders(project_id, parent_id, scope, name, created_by, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?, ?)
+                insert into folders(project_id, parent_id, scope, name, description, created_by, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (project_id, parent_id, scope, name, created_by, now, now),
+                (project_id, parent_id, scope, name, description, created_by, now, now),
             )
             conn.commit()
             return cur.lastrowid

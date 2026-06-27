@@ -219,6 +219,7 @@ create table if not exists folders (
   parent_id uuid references folders(id),
   scope text not null check (scope in ('assets', 'videos')),
   name text not null,
+  description text not null default '',
   created_by uuid references users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

@@ -28,6 +28,7 @@ create table if not exists folders (
   parent_id integer references folders(id),
   scope text not null check (scope in ('assets', 'videos')),
   name text not null,
+  description text not null default '',
   created_by integer references users(id),
   created_at text not null,
   updated_at text not null,

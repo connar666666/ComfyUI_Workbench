@@ -47,11 +47,12 @@ class FolderApiTests(unittest.TestCase):
     def test_create_folder_happy_path(self):
         response = self.client.post(
             "/api/folders",
-            json={"scope": "assets", "name": "Reference Frames"},
+            json={"scope": "assets", "name": "Reference Frames", "description": "Key visual references"},
         )
         self.assertEqual(response.status_code, 200, response.text)
         folder = response.json()
         self.assertEqual(folder["name"], "Reference Frames")
+        self.assertEqual(folder["description"], "Key visual references")
         self.assertEqual(folder["scope"], "assets")
         self.assertEqual(folder["parent_id"], None)
         self.assertEqual(folder["asset_count"], 0)
